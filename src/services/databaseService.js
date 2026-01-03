@@ -488,6 +488,87 @@ class DatabaseService {
             return { healthy: false, error: error.message };
         }
     }
+
+    /**
+     * Guarda o actualiza un usuario de Telegram
+     */
+    async saveTelegramUser(userData) {
+        try {
+            const { chatId, username, phoneNumber, email, customIdentifier, firstName, lastName } = userData;
+            
+            await this.connection.execute(
+                `INSERT INTO ws_telegram_users 
+                 (chat_id, username, phone_number, email, custom_identifier, first_name, last_name, last_message_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE 
+                 username = COALESCE(?, username),
+                 phone_number = COALESCE(?, phone_number),
+                 email = COALESCE(?, email),
+                 custom_identifier = COALESCE(?, custom_identifier),
+                 first_name = COALESCE(?, first_name),
+                 last_name = COALESCE(?, last_name),
+                 last_message_at = NOW(),
+                 updated_at = CURRENT_TIMESTAMP`,
+                [
+                    chatId, username, phoneNumber, email, customIdentifier, firstName, lastName,
+                    username, phoneNumber, email, customIdentifier, firstName, lastName
+                ]
+            );
+
+            logger.info(`Usuario de Telegram guardado/actualizado: chat_id=${chatId}, username=${username || 'N/A'}`);
+            return true;
+        } catch (error) {
+            logger.error('Error guardando usuario de Telegram:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Busca un chat_id de Telegram por identificador
+     * @param {string} identifier - Puede ser: username (@username), phoneNumber, email, o customIdentifier
+     * @returns {Promise<string|null>} chat_id o null si no se encuentra
+     */
+    async findTelegramChatId(identifier) {
+        try {
+            // Si empieza con @, es un username
+            if (identifier.startsWith('@')) {
+                const [rows] = await this.connection.execute(
+                    'SELECT chat_id FROM ws_telegram_users WHERE username = ? LIMIT 1',
+                    [identifier]
+                );
+                return rows.length > 0 ? rows[0].chat_id : null;
+            }
+            
+            // Buscar por phone_number, email o custom_identifier
+            const [rows] = await this.connection.execute(
+                `SELECT chat_id FROM ws_telegram_users 
+                 WHERE phone_number = ? OR email = ? OR custom_identifier = ? 
+                 LIMIT 1`,
+                [identifier, identifier, identifier]
+            );
+            
+            return rows.length > 0 ? rows[0].chat_id : null;
+        } catch (error) {
+            logger.error('Error buscando chat_id de Telegram:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Obtiene todos los usuarios de Telegram registrados
+     */
+    async getTelegramUsers(limit = 50, offset = 0) {
+        try {
+            const [rows] = await this.connection.execute(
+                'SELECT * FROM ws_telegram_users ORDER BY last_message_at DESC LIMIT ? OFFSET ?',
+                [limit, offset]
+            );
+            return rows;
+        } catch (error) {
+            logger.error('Error obteniendo usuarios de Telegram:', error);
+            return [];
+        }
+    }
 }
 
 module.exports = DatabaseService;
