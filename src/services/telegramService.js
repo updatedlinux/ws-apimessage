@@ -90,11 +90,15 @@ class TelegramService {
 
     /**
      * Envía un mensaje a un chat de Telegram
-     * @param {string} chatId - ID del chat (puede ser un número de teléfono o chat_id)
      * @param {string} message - Mensaje a enviar
+     * @param {string|number} identifier - Puede ser:
+     *   - chat_id (número): ID numérico del chat de Telegram
+     *   - username (string): Nombre de usuario de Telegram (ej: @username)
+     *   NOTA: Telegram NO permite enviar mensajes a números telefónicos directamente.
+     *   El usuario debe haber iniciado conversación con el bot primero.
      * @returns {Promise<Object>} Resultado del envío
      */
-    async sendMessage(message, chatId) {
+    async sendMessage(message, identifier) {
         try {
             if (!this.isConnected()) {
                 // Intentar reconectar si no está conectado
@@ -115,19 +119,27 @@ class TelegramService {
                 throw new Error('Conexión de Telegram inactiva');
             }
 
-            // En Telegram, el chatId puede ser:
-            // - Un número de teléfono (si el usuario inició conversación con el bot)
-            // - Un chat_id numérico
-            // Para números telefónicos, necesitamos que el usuario haya iniciado conversación primero
-            // Por ahora, asumimos que chatId es un chat_id válido o un número que ya inició conversación
+            // Determinar el tipo de identificador
+            let telegramChatId;
             
-            let telegramChatId = chatId;
-            
-            // Si es un número telefónico, intentar usarlo directamente
-            // Nota: En Telegram, los usuarios deben iniciar conversación con el bot primero
-            // para que el bot pueda enviarles mensajes
-            
-            logger.info(`📤 Enviando mensaje de Telegram a chat: ${telegramChatId}`);
+            // Si empieza con @, es un username
+            if (typeof identifier === 'string' && identifier.startsWith('@')) {
+                telegramChatId = identifier;
+                logger.info(`📤 Enviando mensaje de Telegram a username: ${telegramChatId}`);
+            } else {
+                // Intentar convertir a número (chat_id)
+                const numericId = typeof identifier === 'string' 
+                    ? identifier.replace(/[^0-9-]/g, '') 
+                    : identifier;
+                
+                // Validar que sea un número válido
+                if (!numericId || (numericId === '' && !identifier.toString().startsWith('@'))) {
+                    throw new Error('Identificador de Telegram inválido. Debe ser un chat_id (número) o username (@username). Telegram NO permite enviar mensajes a números telefónicos directamente.');
+                }
+                
+                telegramChatId = numericId;
+                logger.info(`📤 Enviando mensaje de Telegram a chat_id: ${telegramChatId}`);
+            }
             
             const result = await this.bot.sendMessage(telegramChatId, message, {
                 parse_mode: 'HTML' // Permite formato HTML básico
@@ -146,25 +158,31 @@ class TelegramService {
             
             // Errores comunes de Telegram
             let errorMessage = error.message;
+            let userFriendlyMessage = errorMessage;
+            
             if (error.response) {
                 const errorCode = error.response.error_code;
                 const description = error.response.description;
                 
                 if (errorCode === 403) {
-                    errorMessage = 'El bot fue bloqueado por el usuario o no tiene permisos';
+                    userFriendlyMessage = 'El bot fue bloqueado por el usuario o no tiene permisos para enviar mensajes';
                 } else if (errorCode === 400) {
-                    errorMessage = `Chat inválido: ${description}`;
+                    if (description && description.includes('chat not found')) {
+                        userFriendlyMessage = 'Chat no encontrado. El usuario debe iniciar conversación con el bot primero. Telegram NO permite enviar mensajes a números telefónicos directamente. Usa el chat_id o @username del usuario.';
+                    } else {
+                        userFriendlyMessage = `Chat inválido: ${description}`;
+                    }
                 } else if (errorCode === 429) {
-                    errorMessage = 'Límite de rate limit alcanzado en Telegram';
+                    userFriendlyMessage = 'Límite de rate limit alcanzado en Telegram. Espera unos momentos antes de intentar nuevamente.';
                 } else {
-                    errorMessage = description || error.message;
+                    userFriendlyMessage = description || error.message;
                 }
             }
             
             return {
                 success: false,
-                error: errorMessage,
-                chatId: chatId,
+                error: userFriendlyMessage,
+                chatId: identifier,
                 channel: 'TELEGRAM'
             };
         }

@@ -573,13 +573,16 @@ class WhatsAppMessagingAPI {
          *               countryCode:
          *                 type: string
          *                 example: "+58"
-         *                 description: Código de país con el signo +
+         *                 description: Código de país con el signo + (requerido solo para WHATSAPP, opcional para TELEGRAM)
          *               phoneNumber:
          *                 type: string
          *                 example: "4121234567"
          *                 description: |
-         *                   Número telefónico sin código de país (WHATSAPP) o Chat ID de Telegram (TELEGRAM).
-         *                   Para Telegram, el usuario debe haber iniciado conversación con el bot primero.
+         *                   Para WHATSAPP: Número telefónico sin código de país.
+         *                   Para TELEGRAM: chat_id (número) o @username del usuario.
+         *                   IMPORTANTE: Telegram NO permite enviar mensajes a números telefónicos directamente.
+         *                   El usuario debe haber iniciado conversación con el bot primero.
+         *                   Ejemplos válidos para Telegram: "123456789" (chat_id) o "@username" (username).
          *               channel:
          *                 type: string
          *                 example: "WHATSAPP"
@@ -637,12 +640,26 @@ class WhatsAppMessagingAPI {
                     });
                 }
 
-                // Validar campos requeridos
-                if (!countryCode || !phoneNumber) {
-                    return res.status(400).json({
-                        success: false,
-                        error: 'countryCode y phoneNumber son requeridos'
-                    });
+                // Determinar el canal (default: WHATSAPP)
+                const messageChannel = (channel || 'WHATSAPP').toUpperCase();
+                
+                // Validar campos requeridos según el canal
+                if (messageChannel === 'TELEGRAM') {
+                    // Para Telegram, solo phoneNumber es requerido (puede ser chat_id o @username)
+                    if (!phoneNumber) {
+                        return res.status(400).json({
+                            success: false,
+                            error: 'phoneNumber es requerido para Telegram (debe ser chat_id o @username)'
+                        });
+                    }
+                } else {
+                    // Para WhatsApp, ambos son requeridos
+                    if (!countryCode || !phoneNumber) {
+                        return res.status(400).json({
+                            success: false,
+                            error: 'countryCode y phoneNumber son requeridos para WhatsApp'
+                        });
+                    }
                 }
 
                 if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -651,9 +668,6 @@ class WhatsAppMessagingAPI {
                         error: 'Mensaje requerido'
                     });
                 }
-
-                // Determinar el canal (default: WHATSAPP)
-                const messageChannel = (channel || 'WHATSAPP').toUpperCase();
                 
                 if (messageChannel !== 'WHATSAPP' && messageChannel !== 'TELEGRAM') {
                     return res.status(400).json({
@@ -668,9 +682,19 @@ class WhatsAppMessagingAPI {
 
                 // Enviar mensaje según el canal
                 if (messageChannel === 'TELEGRAM') {
-                    // Para Telegram, el phoneNumber puede ser un chat_id o un número telefónico
-                    // Si es un número, lo formateamos igual que WhatsApp
-                    chatId = phoneNumber.replace(/[^0-9]/g, '');
+                    // Para Telegram, el phoneNumber puede ser:
+                    // - Un chat_id (número de Telegram, no número telefónico)
+                    // - Un username de Telegram (ej: @username)
+                    // NOTA: Telegram NO permite enviar mensajes a números telefónicos directamente.
+                    // El usuario debe haber iniciado conversación con el bot primero.
+                    
+                    // Si empieza con @, es un username, si no, tratarlo como chat_id
+                    let telegramIdentifier = phoneNumber.trim();
+                    
+                    // Si no empieza con @ y parece un número telefónico (muy largo), advertir
+                    if (!telegramIdentifier.startsWith('@') && telegramIdentifier.length > 10) {
+                        logger.warn(`⚠️ Advertencia: Se está usando un identificador largo para Telegram. Asegúrate de que sea un chat_id válido, no un número telefónico. Telegram requiere que el usuario inicie conversación primero.`);
+                    }
                     
                     // Verificar conexión de Telegram
                     const isTelegramActive = await this.telegramService.isConnectionActive();
@@ -682,8 +706,8 @@ class WhatsAppMessagingAPI {
                     }
 
                     // Enviar mensaje por Telegram
-                    result = await this.telegramService.sendMessage(message.trim(), chatId);
-                    fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${chatId}`;
+                    result = await this.telegramService.sendMessage(message.trim(), telegramIdentifier);
+                    fullNumber = telegramIdentifier; // Guardar el identificador usado (chat_id o username)
                 } else {
                     // WhatsApp (comportamiento original)
                     // Verificar conexión
@@ -708,9 +732,14 @@ class WhatsAppMessagingAPI {
                 }
                 
                 // Guardar en base de datos
+                // Para Telegram, phoneNumber puede ser un chat_id o username, no necesariamente un número
+                const dbPhoneNumber = messageChannel === 'TELEGRAM' 
+                    ? phoneNumber.trim() // Mantener tal cual (puede ser @username o chat_id)
+                    : phoneNumber.replace(/[^0-9]/g, ''); // Para WhatsApp, solo números
+                
                 await this.databaseService.logMessage({
-                    phoneNumber: phoneNumber.replace(/[^0-9]/g, ''),
-                    countryCode: countryCode.replace(/[^0-9]/g, ''),
+                    phoneNumber: dbPhoneNumber,
+                    countryCode: messageChannel === 'TELEGRAM' ? '' : (countryCode ? countryCode.replace(/[^0-9]/g, '') : ''),
                     fullNumber: fullNumber,
                     message: message.trim(),
                     channel: messageChannel,
@@ -733,12 +762,17 @@ class WhatsAppMessagingAPI {
                 // Intentar guardar error en BD
                 try {
                     const { countryCode, phoneNumber, message, channel } = req.body;
-                    if (countryCode && phoneNumber && message) {
+                    if (phoneNumber && message) {
                         const messageChannel = (channel || 'WHATSAPP').toUpperCase();
-                        const fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${phoneNumber.replace(/[^0-9]/g, '')}`;
+                        const dbPhoneNumber = messageChannel === 'TELEGRAM' 
+                            ? phoneNumber.trim()
+                            : phoneNumber.replace(/[^0-9]/g, '');
+                        const fullNumber = messageChannel === 'TELEGRAM'
+                            ? phoneNumber.trim()
+                            : `${countryCode ? countryCode.replace(/[^0-9]/g, '') : ''}${phoneNumber.replace(/[^0-9]/g, '')}`;
                         await this.databaseService.logMessage({
-                            phoneNumber: phoneNumber.replace(/[^0-9]/g, ''),
-                            countryCode: countryCode.replace(/[^0-9]/g, ''),
+                            phoneNumber: dbPhoneNumber,
+                            countryCode: messageChannel === 'TELEGRAM' ? '' : (countryCode ? countryCode.replace(/[^0-9]/g, '') : ''),
                             fullNumber: fullNumber,
                             message: message.trim(),
                             channel: messageChannel,
