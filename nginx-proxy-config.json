@@ -1,14 +1,30 @@
 {
-  "domain_names": ["wsapi.arsystech.net"],
-  "forward_scheme": "http",
-  "forward_host": "127.0.0.1",
-  "forward_port": 80,
-  "allow_websocket_upgrade": true,
-  "access_list_id": "0",
-  "certificate_id": 1,
-  "ssl_forced": true,
-  "http2_support": true,
-  "block_exploits": true,
-  "caching_enabled": false,
-  "advanced_config": "# Configuración avanzada para WhatsApp Messaging API\n# Enrutar API al puerto 3000\nlocation /api/ {\n    proxy_pass http://127.0.0.1:3000;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection 'upgrade';\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n    proxy_cache_bypass $http_upgrade;\n    \n    # CORS completamente libre\n    add_header Access-Control-Allow-Origin * always;\n    add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\n    add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-API-Key\" always;\n    add_header Access-Control-Allow-Credentials true always;\n    \n    # Timeouts\n    proxy_read_timeout 300s;\n    proxy_connect_timeout 75s;\n    proxy_send_timeout 300s;\n}\n\n# Dashboard en puerto 80\nlocation / {\n    proxy_pass http://127.0.0.1:80;\n    proxy_http_version 1.1;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n    \n    # Servir dashboard.html por defecto\n    try_files $uri $uri/ /dashboard.html;\n}\n\n# Rate limiting\nlimit_req_zone $binary_remote_addr zone=whatsapp_api:10m rate=10r/s;\nlimit_req zone=whatsapp_api burst=20 nodelay;\n\n# Security headers\nadd_header X-Frame-Options SAMEORIGIN always;\nadd_header X-Content-Type-Options nosniff always;\nadd_header X-XSS-Protection \"1; mode=block\" always;\n\n# Cache control para API\nlocation /api/ {\n    add_header Cache-Control \"no-cache, no-store, must-revalidate\" always;\n    add_header Pragma \"no-cache\" always;\n    add_header Expires \"0\" always;\n}\n\n# Health check endpoint\nlocation /api/health {\n    access_log off;\n}"
+  "frontend": {
+    "domain_names": ["wsapi.arsystech.net"],
+    "forward_scheme": "http",
+    "forward_host": "127.0.0.1",
+    "forward_port": 80,
+    "allow_websocket_upgrade": true,
+    "access_list_id": "0",
+    "certificate_id": 1,
+    "ssl_forced": true,
+    "http2_support": true,
+    "block_exploits": true,
+    "caching_enabled": false,
+    "advanced_config": "# Configuración para Dashboard Frontend\n# Servir archivos estáticos del dashboard\nlocation / {\n    proxy_pass http://127.0.0.1:80;\n    proxy_http_version 1.1;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n    \n    # Servir index.html por defecto\n    try_files $uri $uri/ /index.html;\n}\n\n# Headers de seguridad\nadd_header X-Frame-Options SAMEORIGIN always;\nadd_header X-Content-Type-Options nosniff always;\nadd_header X-XSS-Protection \"1; mode=block\" always;"
+  },
+  "backend": {
+    "domain_names": ["wsapiback.arsystech.net"],
+    "forward_scheme": "http",
+    "forward_host": "127.0.0.1",
+    "forward_port": 3000,
+    "allow_websocket_upgrade": true,
+    "access_list_id": "0",
+    "certificate_id": 1,
+    "ssl_forced": true,
+    "http2_support": true,
+    "block_exploits": true,
+    "caching_enabled": false,
+    "advanced_config": "# Configuración para API Backend\n# Enrutar todas las rutas al puerto 3000\nlocation / {\n    proxy_pass http://127.0.0.1:3000;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection 'upgrade';\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n    proxy_cache_bypass $http_upgrade;\n    \n    # CORS completamente libre\n    add_header Access-Control-Allow-Origin * always;\n    add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\n    add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-API-Key\" always;\n    add_header Access-Control-Allow-Credentials true always;\n    \n    # Manejar preflight OPTIONS\n    if ($request_method = 'OPTIONS') {\n        add_header Access-Control-Allow-Origin * always;\n        add_header Access-Control-Allow-Methods \"GET, POST, PUT, DELETE, OPTIONS\" always;\n        add_header Access-Control-Allow-Headers \"Content-Type, Authorization, X-API-Key\" always;\n        add_header Access-Control-Max-Age 1728000;\n        add_header Content-Type 'text/plain; charset=utf-8';\n        add_header Content-Length 0;\n        return 204;\n    }\n    \n    # Timeouts\n    proxy_read_timeout 300s;\n    proxy_connect_timeout 75s;\n    proxy_send_timeout 300s;\n}\n\n# Health check endpoint\nlocation /api/health {\n    access_log off;\n}"
+  }
 }

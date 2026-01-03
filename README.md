@@ -11,6 +11,24 @@ API independiente para envío de mensajes vía WhatsApp con dashboard de gestió
 - ✅ **Autenticación JWT**: Sistema de autenticación seguro
 - ✅ **Historial de Mensajes**: Registro completo de todos los mensajes enviados
 - ✅ **Estadísticas**: Métricas y estadísticas de mensajes
+- ✅ **Arquitectura Separada**: Frontend y Backend en dominios separados para mejor escalabilidad
+
+## 🌐 Arquitectura de Despliegue
+
+El proyecto está diseñado para funcionar con dos dominios separados:
+
+- **Frontend (Dashboard)**: `https://wsapi.arsystech.net` → Puerto 80
+  - Sirve el dashboard web y archivos estáticos
+  - Configurado en Nginx Proxy Manager para hacer proxy al puerto 80
+
+- **Backend (API)**: `https://wsapiback.arsystech.net` → Puerto 3000
+  - Sirve todos los endpoints de la API (`/api/*`)
+  - Configurado en Nginx Proxy Manager para hacer proxy al puerto 3000
+  - CORS completamente abierto para permitir peticiones desde el frontend
+
+El frontend detecta automáticamente el entorno y hace las llamadas al backend correcto:
+- **Producción**: `https://wsapiback.arsystech.net/api/*`
+- **Desarrollo**: `http://localhost:3000/api/*`
 
 ## 📋 Requisitos
 
@@ -95,11 +113,24 @@ Los servidores estarán disponibles en:
 3. Escanea el código QR que aparece en el dashboard
 4. Una vez conectado, podrás ver el estado de conexión y el historial de mensajes
 
+**Nota**: En producción, el dashboard (`wsapi.arsystech.net`) hace llamadas automáticamente al backend (`wsapiback.arsystech.net/api/*`). En desarrollo local, usa `http://localhost:3000/api`.
+
 ### API REST
 
 #### Enviar Mensaje
 
 ```bash
+# En producción
+curl -X POST https://wsapiback.arsystech.net/api/send-message \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key_here" \
+  -d '{
+    "countryCode": "+58",
+    "phoneNumber": "4121234567",
+    "message": "Hola, este es un mensaje de prueba"
+  }'
+
+# En desarrollo local
 curl -X POST http://localhost:3000/api/send-message \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your_secret_key_here" \
