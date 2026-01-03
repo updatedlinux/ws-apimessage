@@ -1,6 +1,8 @@
 /**
  * API de Mensajería WhatsApp
  * Servicio independiente para envío de mensajes vía WhatsApp
+ * - API Server en puerto 3000
+ * - Dashboard Server en puerto 80
  */
 
 const express = require('express');
@@ -17,39 +19,72 @@ const logger = require('./utils/logger');
 
 class WhatsAppMessagingAPI {
     constructor() {
-        this.app = express();
-        this.port = process.env.PORT || 3003;
+        // Servicios compartidos
         this.databaseService = new DatabaseService();
         this.whatsappService = new WhatsAppService(this.databaseService);
         this.jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret_change_this';
         
-        this.setupMiddleware();
-        this.setupRoutes();
-        this.setupErrorHandling();
+        // Servidor de API (puerto 3000)
+        this.apiApp = express();
+        this.apiPort = process.env.API_PORT || 3000;
+        
+        // Servidor de Dashboard (puerto 80)
+        this.dashboardApp = express();
+        this.dashboardPort = process.env.DASHBOARD_PORT || 80;
+        
+        this.setupAPIServer();
+        this.setupDashboardServer();
     }
 
     /**
-     * Configura el middleware de Express
+     * Configura el servidor de API (puerto 3000)
      */
-    setupMiddleware() {
+    setupAPIServer() {
         // Configurar trust proxy para Nginx Proxy Manager
-        this.app.set('trust proxy', true);
+        this.apiApp.set('trust proxy', true);
         
-        // Seguridad básica
-        this.app.use(helmet());
-        
-        // CORS
-        this.app.use(cors({
-            origin: process.env.CORS_ORIGIN || '*',
-            credentials: true
+        // CORS completamente libre
+        this.apiApp.use(cors({
+            origin: '*',
+            credentials: true,
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key']
         }));
 
         // Parse JSON
-        this.app.use(express.json({ limit: '10mb' }));
-        this.app.use(express.urlencoded({ extended: true }));
+        this.apiApp.use(express.json({ limit: '10mb' }));
+        this.apiApp.use(express.urlencoded({ extended: true }));
+
+        // Configurar rutas de API
+        this.setupAPIRoutes();
+        this.setupAPIErrorHandling();
+    }
+
+    /**
+     * Configura el servidor de Dashboard (puerto 80)
+     */
+    setupDashboardServer() {
+        // Configurar trust proxy para Nginx Proxy Manager
+        this.dashboardApp.set('trust proxy', true);
+        
+        // CORS completamente libre
+        this.dashboardApp.use(cors({
+            origin: '*',
+            credentials: true
+        }));
 
         // Servir archivos estáticos del dashboard
-        this.app.use(express.static(path.join(__dirname, '../assets')));
+        this.dashboardApp.use(express.static(path.join(__dirname, '../assets')));
+
+        // Ruta raíz - servir dashboard.html por defecto
+        this.dashboardApp.get('/', (req, res) => {
+            res.sendFile(path.join(__dirname, '../assets/dashboard.html'));
+        });
+
+        // Manejo de errores del dashboard
+        this.dashboardApp.use((req, res) => {
+            res.status(404).sendFile(path.join(__dirname, '../assets/dashboard.html'));
+        });
     }
 
     /**
@@ -83,9 +118,9 @@ class WhatsAppMessagingAPI {
     /**
      * Configura las rutas de la API
      */
-    setupRoutes() {
+    setupAPIRoutes() {
         // Health check
-        this.app.get('/api/health', async (req, res) => {
+        this.apiApp.get('/api/health', async (req, res) => {
             try {
                 const dbHealth = await this.databaseService.healthCheck();
                 const isConnected = this.whatsappService.isConnected();
@@ -111,7 +146,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoints de autenticación
-        this.app.post('/api/auth/login', async (req, res) => {
+        this.apiApp.post('/api/auth/login', async (req, res) => {
             try {
                 const { username, password } = req.body;
 
@@ -172,7 +207,7 @@ class WhatsAppMessagingAPI {
             }
         });
 
-        this.app.get('/api/auth/verify', this.authenticateToken.bind(this), (req, res) => {
+        this.apiApp.get('/api/auth/verify', this.authenticateToken.bind(this), (req, res) => {
             res.json({
                 success: true,
                 data: {
@@ -182,7 +217,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoint para cambiar contraseña
-        this.app.post('/api/auth/change-password', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.post('/api/auth/change-password', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const { currentPassword, newPassword } = req.body;
                 const userId = req.user.userId;
@@ -222,8 +257,7 @@ class WhatsAppMessagingAPI {
                 // Hashear nueva contraseña
                 const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
-                // Actualizar contraseña (necesitamos agregar este método al databaseService)
-                // Por ahora, usaremos una consulta directa
+                // Actualizar contraseña
                 await this.databaseService.connection.execute(
                     'UPDATE ws_users SET password_hash = ? WHERE id = ?',
                     [newPasswordHash, userId]
@@ -243,7 +277,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener estado de conexión (requiere autenticación)
-        this.app.get('/api/status', this.authenticateToken.bind(this), (req, res) => {
+        this.apiApp.get('/api/status', this.authenticateToken.bind(this), (req, res) => {
             try {
                 const clientInfo = this.whatsappService.getClientInfo();
                 const status = {
@@ -259,7 +293,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener QR para conexión (requiere autenticación)
-        this.app.get('/api/qr', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.get('/api/qr', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 if (this.whatsappService.isConnected()) {
                     return res.json({
@@ -290,7 +324,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoint principal: Enviar mensaje
-        this.app.post('/api/send-message', async (req, res) => {
+        this.apiApp.post('/api/send-message', async (req, res) => {
             try {
                 const { countryCode, phoneNumber, channel, message } = req.body;
 
@@ -386,7 +420,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener historial de mensajes (requiere autenticación)
-        this.app.get('/api/messages', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.get('/api/messages', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const limit = parseInt(req.query.limit) || 50;
                 const offset = parseInt(req.query.offset) || 0;
@@ -412,7 +446,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener estadísticas (requiere autenticación)
-        this.app.get('/api/stats', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.get('/api/stats', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const stats = await this.databaseService.getMessageStats();
                 
@@ -430,7 +464,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Desconectar WhatsApp (requiere autenticación)
-        this.app.post('/api/disconnect', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.post('/api/disconnect', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 await this.whatsappService.destroy();
                 
@@ -462,7 +496,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Forzar reconexión (requiere autenticación)
-        this.app.post('/api/reconnect', this.authenticateToken.bind(this), async (req, res) => {
+        this.apiApp.post('/api/reconnect', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 logger.info('🔄 Reconexión manual iniciada...');
                 
@@ -483,19 +517,14 @@ class WhatsAppMessagingAPI {
                 });
             }
         });
-
-        // Ruta raíz - servir dashboard
-        this.app.get('/', (req, res) => {
-            res.sendFile(path.join(__dirname, '../assets/dashboard.html'));
-        });
     }
 
     /**
-     * Configura el manejo de errores
+     * Configura el manejo de errores de la API
      */
-    setupErrorHandling() {
+    setupAPIErrorHandling() {
         // Error 404
-        this.app.use('*', (req, res) => {
+        this.apiApp.use('*', (req, res) => {
             res.status(404).json({
                 success: false,
                 error: 'Endpoint no encontrado'
@@ -503,7 +532,7 @@ class WhatsAppMessagingAPI {
         });
 
         // Error handler global
-        this.app.use((error, req, res, next) => {
+        this.apiApp.use((error, req, res, next) => {
             logger.error('Error no manejado:', error);
             res.status(500).json({
                 success: false,
@@ -513,7 +542,7 @@ class WhatsAppMessagingAPI {
     }
 
     /**
-     * Inicia el servidor
+     * Inicia ambos servidores
      */
     async start() {
         try {
@@ -523,30 +552,39 @@ class WhatsAppMessagingAPI {
             // Inicializar WhatsApp
             await this.whatsappService.initialize();
 
-            // Iniciar servidor
-            this.app.listen(this.port, () => {
-                logger.info(`🚀 Servidor WhatsApp Messaging API iniciado en puerto ${this.port}`);
-                logger.info(`📱 Dashboard: http://localhost:${this.port}/`);
-                logger.info(`💬 Endpoint mensajes: http://localhost:${this.port}/api/send-message`);
-                logger.info(`🔍 Estado: http://localhost:${this.port}/api/status`);
+            // Iniciar servidor de API (puerto 3000)
+            this.apiApp.listen(this.apiPort, () => {
+                logger.info(`🚀 API Server iniciado en puerto ${this.apiPort}`);
+                logger.info(`💬 Endpoint mensajes: http://localhost:${this.apiPort}/api/send-message`);
+                logger.info(`🔍 Health check: http://localhost:${this.apiPort}/api/health`);
             });
 
+            // Iniciar servidor de Dashboard (puerto 80)
+            this.dashboardApp.listen(this.dashboardPort, () => {
+                logger.info(`📱 Dashboard Server iniciado en puerto ${this.dashboardPort}`);
+                logger.info(`🌐 Dashboard: http://localhost:${this.dashboardPort}/`);
+            });
+
+            logger.info(`\n✅ Servidores iniciados correctamente`);
+            logger.info(`   API: http://localhost:${this.apiPort}`);
+            logger.info(`   Dashboard: http://localhost:${this.dashboardPort}\n`);
+
         } catch (error) {
-            logger.error('Error iniciando servidor:', error);
+            logger.error('Error iniciando servidores:', error);
             process.exit(1);
         }
     }
 
     /**
-     * Detiene el servidor
+     * Detiene ambos servidores
      */
     async stop() {
         try {
             await this.whatsappService.destroy();
             await this.databaseService.close();
-            logger.info('Servidor detenido correctamente');
+            logger.info('Servidores detenidos correctamente');
         } catch (error) {
-            logger.error('Error deteniendo servidor:', error);
+            logger.error('Error deteniendo servidores:', error);
         }
     }
 }
@@ -555,7 +593,7 @@ class WhatsAppMessagingAPI {
 let app = null;
 
 process.on('SIGINT', async () => {
-    logger.info('Recibida señal SIGINT, cerrando servidor...');
+    logger.info('Recibida señal SIGINT, cerrando servidores...');
     if (app) {
         await app.stop();
     }
@@ -563,7 +601,7 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
-    logger.info('Recibida señal SIGTERM, cerrando servidor...');
+    logger.info('Recibida señal SIGTERM, cerrando servidores...');
     if (app) {
         await app.stop();
     }

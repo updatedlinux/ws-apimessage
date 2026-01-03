@@ -44,8 +44,9 @@ nano .env
 Configura las siguientes variables en `.env`:
 
 ```env
-# Puerto del servidor
-PORT=3003
+# Puertos de los servidores
+API_PORT=3000
+DASHBOARD_PORT=80
 
 # Configuración de base de datos MariaDB
 DB_HOST=localhost
@@ -81,13 +82,15 @@ npm start
 npm run dev
 ```
 
-El servidor estará disponible en `http://localhost:3003`
+Los servidores estarán disponibles en:
+- API: `http://localhost:3000`
+- Dashboard: `http://localhost:80`
 
 ## 📱 Uso
 
 ### Dashboard Web
 
-1. Accede a `http://localhost:3003`
+1. Accede a `http://localhost:80` (o `https://wsapi.arsystech.net` en producción)
 2. Inicia sesión con el usuario admin creado durante la inicialización
 3. Escanea el código QR que aparece en el dashboard
 4. Una vez conectado, podrás ver el estado de conexión y el historial de mensajes
@@ -97,7 +100,7 @@ El servidor estará disponible en `http://localhost:3003`
 #### Enviar Mensaje
 
 ```bash
-curl -X POST http://localhost:3003/api/send-message \
+curl -X POST http://localhost:3000/api/send-message \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your_secret_key_here" \
   -d '{
@@ -345,6 +348,14 @@ El script de inicialización crea las siguientes tablas:
 - Limpia las sesiones: `rm -rf sessions/*`
 - Reinicia el servicio
 - Verifica que no haya procesos de Chrome bloqueados
+
+### Error de Permisos en Puerto 80
+
+El puerto 80 requiere permisos de root. Opciones:
+- Ejecutar con `sudo` (no recomendado para producción)
+- Usar `authbind`: `sudo apt install authbind && sudo touch /etc/authbind/byport/80 && sudo chmod 500 /etc/authbind/byport/80 && sudo chown $USER /etc/authbind/byport/80`
+- Usar `setcap`: `sudo setcap 'cap_net_bind_service=+ep' $(which node)`
+- Usar un proxy reverso (recomendado)
 
 ### Error al Enviar Mensajes
 
