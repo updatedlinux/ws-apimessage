@@ -769,30 +769,54 @@
                     let whatsappSent = 0, whatsappFailed = 0, whatsappPending = 0;
                     let telegramSent = 0, telegramFailed = 0, telegramPending = 0;
                     
+                    // Procesar cada estadística
                     data.data.forEach(stat => {
-                        const count = parseInt(stat.count);
-                        const channel = stat.channel || 'WHATSAPP';
+                        // Asegurar que count sea un número (puede venir como string desde MySQL)
+                        const count = parseInt(stat.count) || 0;
+                        if (isNaN(count) || count === 0) return; // Saltar si count es inválido o 0
                         
+                        // Normalizar el canal (puede venir como string o null)
+                        const channel = String(stat.channel || 'WHATSAPP').toUpperCase().trim();
+                        // Normalizar el status
+                        const status = String(stat.status || '').toLowerCase().trim();
+                        
+                        // Agregar al contador correspondiente (asegurar suma numérica)
                         if (channel === 'WHATSAPP') {
-                            if (stat.status === 'sent') whatsappSent += count;
-                            else if (stat.status === 'failed') whatsappFailed += count;
-                            else if (stat.status === 'pending') whatsappPending += count;
+                            if (status === 'sent') {
+                                whatsappSent = Number(whatsappSent || 0) + Number(count);
+                            } else if (status === 'failed') {
+                                whatsappFailed = Number(whatsappFailed || 0) + Number(count);
+                            } else if (status === 'pending') {
+                                whatsappPending = Number(whatsappPending || 0) + Number(count);
+                            }
                         } else if (channel === 'TELEGRAM') {
-                            if (stat.status === 'sent') telegramSent += count;
-                            else if (stat.status === 'failed') telegramFailed += count;
-                            else if (stat.status === 'pending') telegramPending += count;
+                            if (status === 'sent') {
+                                telegramSent = Number(telegramSent || 0) + Number(count);
+                            } else if (status === 'failed') {
+                                telegramFailed = Number(telegramFailed || 0) + Number(count);
+                            } else if (status === 'pending') {
+                                telegramPending = Number(telegramPending || 0) + Number(count);
+                            }
                         }
                     });
 
-                    // Actualizar valores
+                    // Asegurar que todos los valores sean números enteros
+                    whatsappSent = Math.floor(Number(whatsappSent) || 0);
+                    whatsappFailed = Math.floor(Number(whatsappFailed) || 0);
+                    telegramSent = Math.floor(Number(telegramSent) || 0);
+                    telegramFailed = Math.floor(Number(telegramFailed) || 0);
+
+                    // Actualizar valores individuales
                     document.getElementById('statWhatsAppSent').textContent = whatsappSent;
                     document.getElementById('statWhatsAppFailed').textContent = whatsappFailed;
                     document.getElementById('statTelegramSent').textContent = telegramSent;
                     document.getElementById('statTelegramFailed').textContent = telegramFailed;
                     
+                    // Calcular totales (suma de todos los canales)
                     const totalSent = whatsappSent + telegramSent;
                     const totalFailed = whatsappFailed + telegramFailed;
                     
+                    // Actualizar totales
                     document.getElementById('statTotalSent').textContent = totalSent;
                     document.getElementById('statTotalFailed').textContent = totalFailed;
                 }
