@@ -250,15 +250,22 @@ class DatabaseService {
     }
 
     /**
-     * Obtiene el historial de mensajes
+     * Obtiene el historial de mensajes con filtro opcional por canal
      */
-    async getMessageHistory(limit = 50, offset = 0) {
+    async getMessageHistory(limit = 50, offset = 0, channel = null) {
         try {
-            const [rows] = await this.connection.execute(
-                'SELECT * FROM ws_messages ORDER BY created_at DESC LIMIT ? OFFSET ?',
-                [limit, offset]
-            );
-
+            let query = 'SELECT * FROM ws_messages WHERE 1=1';
+            const params = [];
+            
+            if (channel) {
+                query += ' AND COALESCE(channel, \'WHATSAPP\') = ?';
+                params.push(channel);
+            }
+            
+            query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+            params.push(limit, offset);
+            
+            const [rows] = await this.connection.execute(query, params);
             return rows;
         } catch (error) {
             logger.error('Error obteniendo historial de mensajes:', error);
@@ -267,19 +274,28 @@ class DatabaseService {
     }
 
     /**
-     * Obtiene estadísticas de mensajes
+     * Obtiene estadísticas de mensajes agrupadas por canal y status
      */
-    async getMessageStats() {
+    async getMessageStats(channel = null) {
         try {
-            const [rows] = await this.connection.execute(`
+            let query = `
                 SELECT 
+                    COALESCE(channel, 'WHATSAPP') as channel,
                     status,
                     COUNT(*) as count
                 FROM ws_messages 
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-                GROUP BY status
-            `);
-
+            `;
+            
+            const params = [];
+            if (channel) {
+                query += ' AND COALESCE(channel, \'WHATSAPP\') = ?';
+                params.push(channel);
+            }
+            
+            query += ' GROUP BY COALESCE(channel, \'WHATSAPP\'), status';
+            
+            const [rows] = await this.connection.execute(query, params);
             return rows;
         } catch (error) {
             logger.error('Error obteniendo estadísticas:', error);

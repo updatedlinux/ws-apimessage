@@ -780,6 +780,12 @@ class WhatsAppMessagingAPI {
          *           type: integer
          *           default: 0
          *         description: Offset para paginación
+         *       - in: query
+         *         name: channel
+         *         schema:
+         *           type: string
+         *           enum: [WHATSAPP, TELEGRAM]
+         *         description: Filtrar mensajes por canal (opcional)
          *     responses:
          *       200:
          *         description: Lista de mensajes
@@ -801,8 +807,9 @@ class WhatsAppMessagingAPI {
             try {
                 const limit = parseInt(req.query.limit) || 50;
                 const offset = parseInt(req.query.offset) || 0;
+                const channel = req.query.channel || null; // Filtro opcional por canal
                 
-                const messages = await this.databaseService.getMessageHistory(limit, offset);
+                const messages = await this.databaseService.getMessageHistory(limit, offset, channel);
                 
                 res.json({
                     success: true,
@@ -831,6 +838,13 @@ class WhatsAppMessagingAPI {
          *     tags: [Estadísticas]
          *     security:
          *       - bearerAuth: []
+         *     parameters:
+         *       - in: query
+         *         name: channel
+         *         schema:
+         *           type: string
+         *           enum: [WHATSAPP, TELEGRAM]
+         *         description: Filtrar estadísticas por canal (opcional)
          *     responses:
          *       200:
          *         description: Estadísticas de mensajes
@@ -854,7 +868,8 @@ class WhatsAppMessagingAPI {
          */
         this.apiApp.get('/api/stats', this.authenticateToken.bind(this), async (req, res) => {
             try {
-                const stats = await this.databaseService.getMessageStats();
+                const channel = req.query.channel || null; // Filtro opcional por canal
+                const stats = await this.databaseService.getMessageStats(channel);
                 
                 res.json({
                     success: true,
