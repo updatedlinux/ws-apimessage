@@ -122,11 +122,34 @@ class DatabaseService {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             `;
 
+            // Tabla para mapear usuarios de Telegram (identificadores -> chat_id)
+            const telegramUsersTable = `
+                CREATE TABLE IF NOT EXISTS ws_telegram_users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    chat_id VARCHAR(50) NOT NULL,
+                    username VARCHAR(255),
+                    phone_number VARCHAR(50),
+                    email VARCHAR(255),
+                    custom_identifier VARCHAR(255),
+                    first_name VARCHAR(255),
+                    last_name VARCHAR(255),
+                    last_message_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY unique_chat_id (chat_id),
+                    INDEX idx_username (username),
+                    INDEX idx_phone_number (phone_number),
+                    INDEX idx_email (email),
+                    INDEX idx_custom_identifier (custom_identifier)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            `;
+
             await this.connection.execute(configTable);
             await this.connection.execute(messagesTable);
             await this.connection.execute(connectionTable);
             await this.connection.execute(usersTable);
             await this.connection.execute(sessionsTable);
+            await this.connection.execute(telegramUsersTable);
             
             // Verificar y agregar columna channel si no existe (para compatibilidad con instalaciones existentes)
             await this.addChannelColumnIfNotExists();

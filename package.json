@@ -9,6 +9,7 @@
       "init-db": "node scripts/init-db.js",
       "generate-secrets": "node scripts/generate-secrets.js",
       "migrate-channel": "node scripts/migrate-channel.js",
+      "migrate-telegram-users": "node scripts/migrate-telegram-users.js",
       "test": "echo \"Error: no test specified\" && exit 1"
     },
   "keywords": ["whatsapp", "whatsapp-web.js", "nodejs", "messaging", "api"],
