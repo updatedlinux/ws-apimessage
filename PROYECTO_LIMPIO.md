@@ -22,8 +22,7 @@ ws-apimessage/
 ├── 📁 scripts/                    # Scripts de utilidad
 │   └── init-db.js                # Script de inicialización de BD
 └── 📁 assets/                     # Archivos estáticos del dashboard
-    ├── dashboard.html             # Dashboard principal
-    ├── index.html.backup          # Backup del HTML original
+    ├── index.html                 # Dashboard principal
     └── favicon/                   # Iconos del sitio
 ```
 

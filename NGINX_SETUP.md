@@ -24,16 +24,16 @@ Necesitas crear **dos Proxy Hosts** en Nginx Proxy Manager:
 
 **Advanced Tab - Custom Nginx Configuration:**
 ```nginx
-# Servir dashboard.html por defecto
+# Servir index.html por defecto
 location = / {
-    try_files /dashboard.html =404;
+    try_files /index.html =404;
 }
 
 # Servir archivos estáticos
 location / {
     root /path/to/assets;
-    try_files $uri $uri/ /dashboard.html;
-    index dashboard.html;
+    try_files $uri $uri/ /index.html;
+    index index.html;
 }
 ```
 
@@ -127,9 +127,10 @@ location / {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     
-    # Servir dashboard.html por defecto
-    try_files $uri $uri/ /dashboard.html;
+    # Servir index.html por defecto
+    try_files $uri $uri/ /index.html;
 }
+```
 ```
 
 ## ✅ Verificación

@@ -76,14 +76,14 @@ class WhatsAppMessagingAPI {
         // Servir archivos estáticos del dashboard
         this.dashboardApp.use(express.static(path.join(__dirname, '../assets')));
 
-        // Ruta raíz - servir dashboard.html por defecto
+        // Ruta raíz - servir index.html por defecto
         this.dashboardApp.get('/', (req, res) => {
-            res.sendFile(path.join(__dirname, '../assets/dashboard.html'));
+            res.sendFile(path.join(__dirname, '../assets/index.html'));
         });
 
         // Manejo de errores del dashboard
         this.dashboardApp.use((req, res) => {
-            res.status(404).sendFile(path.join(__dirname, '../assets/dashboard.html'));
+            res.status(404).sendFile(path.join(__dirname, '../assets/index.html'));
         });
     }
 
