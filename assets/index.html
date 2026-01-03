@@ -606,6 +606,8 @@
         let authToken = null;
         let statusInterval = null;
         let qrInterval = null;
+        let messagesCurrentPage = 0;
+        const messagesPerPage = 30;
 
         // Verificar token al cargar
         window.addEventListener('load', async function() {
