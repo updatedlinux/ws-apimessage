@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arsys Notify System</title>
+    <title>API Notify System</title>
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -427,7 +427,7 @@
         <div class="header">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <img src="svgMAIN-intelalogo.svg" alt="Arsys Logo" style="height: 50px; width: auto;">
-                <h1>Arsys Notify System</h1>
+                <h1>API Notify System</h1>
             </div>
             <div class="header-actions">
                 <button class="btn" onclick="openChangePasswordModal()">
@@ -524,12 +524,12 @@
                 <div class="section-header">
                     <h2><i class="fas fa-history"></i> Historial de Mensajes</h2>
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <select id="messagesChannelFilter" class="channel-filter" onchange="loadMessages()">
+                        <select id="messagesChannelFilter" class="channel-filter" onchange="resetMessagesPagination(); loadMessages()">
                             <option value="">Todos los Canales</option>
                             <option value="WHATSAPP">WhatsApp</option>
                             <option value="TELEGRAM">Telegram</option>
                         </select>
-                        <button class="refresh-btn" onclick="loadMessages()">
+                        <button class="refresh-btn" onclick="resetMessagesPagination(); loadMessages()">
                             <i class="fas fa-sync-alt"></i> Actualizar
                         </button>
                     </div>
@@ -552,6 +552,9 @@
                         </tr>
                     </tbody>
                 </table>
+                <div id="messagesPagination" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 20px; padding: 20px;">
+                    <!-- Paginación se insertará aquí -->
+                </div>
             </div>
         </div>
     </div>
@@ -796,12 +799,17 @@
             }
         }
 
-        async function loadMessages() {
+        function resetMessagesPagination() {
+            messagesCurrentPage = 0;
+        }
+
+        async function loadMessages(page = messagesCurrentPage) {
             try {
                 const channelFilter = document.getElementById('messagesChannelFilter').value;
+                const offset = page * messagesPerPage;
                 const url = channelFilter 
-                    ? `${API_BASE}/messages?limit=50&channel=${channelFilter}`
-                    : `${API_BASE}/messages?limit=50`;
+                    ? `${API_BASE}/messages?limit=${messagesPerPage}&offset=${offset}&channel=${channelFilter}`
+                    : `${API_BASE}/messages?limit=${messagesPerPage}&offset=${offset}`;
                 
                 const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
@@ -810,6 +818,8 @@
 
                 if (data.success) {
                     const tbody = document.getElementById('messagesTableBody');
+                    const paginationDiv = document.getElementById('messagesPagination');
+                    
                     if (data.data.length === 0) {
                         tbody.innerHTML = `
                             <tr>
@@ -818,6 +828,7 @@
                                 </td>
                             </tr>
                         `;
+                        paginationDiv.innerHTML = '';
                     } else {
                         tbody.innerHTML = data.data.map(msg => {
                             const date = new Date(msg.created_at).toLocaleString('es-ES');
@@ -842,11 +853,56 @@
                                 </tr>
                             `;
                         }).join('');
+
+                        // Actualizar paginación
+                        messagesCurrentPage = page;
+                        updateMessagesPagination(page, data.data.length === messagesPerPage);
                     }
                 }
             } catch (error) {
                 console.error('Error cargando mensajes:', error);
             }
+        }
+
+        function updateMessagesPagination(currentPage, hasMore) {
+            const paginationDiv = document.getElementById('messagesPagination');
+            
+            let paginationHTML = '';
+            
+            if (currentPage > 0 || hasMore) {
+                paginationHTML = '<div style="display: flex; gap: 10px; align-items: center;">';
+                
+                // Botón Anterior
+                if (currentPage > 0) {
+                    paginationHTML += `<button class="refresh-btn" onclick="loadMessages(${currentPage - 1})" style="padding: 8px 16px;">
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>`;
+                } else {
+                    paginationHTML += `<button class="refresh-btn" disabled style="padding: 8px 16px; opacity: 0.5; cursor: not-allowed;">
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>`;
+                }
+                
+                // Página actual
+                paginationHTML += `<span style="padding: 8px 16px; color: #00568E; font-weight: 600;">
+                    Página ${currentPage + 1}
+                </span>`;
+                
+                // Botón Siguiente
+                if (hasMore) {
+                    paginationHTML += `<button class="refresh-btn" onclick="loadMessages(${currentPage + 1})" style="padding: 8px 16px;">
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>`;
+                } else {
+                    paginationHTML += `<button class="refresh-btn" disabled style="padding: 8px 16px; opacity: 0.5; cursor: not-allowed;">
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>`;
+                }
+                
+                paginationHTML += '</div>';
+            }
+            
+            paginationDiv.innerHTML = paginationHTML;
         }
 
         function startAutoRefresh() {
