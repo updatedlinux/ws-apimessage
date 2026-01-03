@@ -1085,6 +1085,10 @@ class WhatsAppMessagingAPI {
      */
     async stop() {
         try {
+            // Detener Telegram bot polling
+            if (this.telegramService) {
+                await this.telegramService.destroy();
+            }
             await this.whatsappService.destroy();
             await this.databaseService.close();
             logger.info('Servidores detenidos correctamente');

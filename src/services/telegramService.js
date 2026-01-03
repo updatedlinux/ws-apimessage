@@ -12,10 +12,10 @@ class TelegramService {
         this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
         this.databaseService = databaseService;
         this._isConnected = false;
+        this._isInitialized = false; // Flag para evitar doble inicialización
         
-        if (this.botToken) {
-            this.initialize();
-        } else {
+        // NO inicializar automáticamente aquí, se hará desde start()
+        if (!this.botToken) {
             logger.warn('⚠️ Telegram Bot Token no configurado. El servicio de Telegram no estará disponible.');
         }
     }
@@ -25,9 +25,25 @@ class TelegramService {
      */
     initialize() {
         try {
+            // Evitar doble inicialización
+            if (this._isInitialized && this.bot) {
+                logger.warn('⚠️ Bot de Telegram ya está inicializado, omitiendo...');
+                return;
+            }
+
             if (!this.botToken) {
                 logger.warn('Telegram Bot Token no configurado');
                 return;
+            }
+
+            // Si ya hay un bot activo, detenerlo primero
+            if (this.bot && this.bot.stopPolling) {
+                try {
+                    this.bot.stopPolling();
+                    logger.info('🛑 Deteniendo polling anterior...');
+                } catch (e) {
+                    logger.warn('Error deteniendo polling anterior:', e.message);
+                }
             }
 
             logger.info('🤖 Inicializando bot de Telegram...');
@@ -45,6 +61,9 @@ class TelegramService {
             
             // Configurar handlers para recibir mensajes
             this.setupMessageHandlers();
+            
+            // Marcar como inicializado
+            this._isInitialized = true;
             
             // Verificar que el bot es válido obteniendo información
             this.bot.getMe().then((botInfo) => {
@@ -65,11 +84,13 @@ class TelegramService {
             }).catch((error) => {
                 logger.error('❌ Error conectando bot de Telegram:', error.message);
                 this._isConnected = false;
+                this._isInitialized = false; // Permitir reintento
             });
 
         } catch (error) {
             logger.error('❌ Error inicializando Telegram:', error);
             this._isConnected = false;
+            this._isInitialized = false; // Permitir reintento
         }
     }
 
@@ -295,12 +316,19 @@ class TelegramService {
 
                 // Opcional: Responder automáticamente al usuario
                 // Puedes personalizar este mensaje según tus necesidades
-                const welcomeMessage = `¡Hola! 👋\n\nGracias por escribirme. Tu chat_id ha sido registrado: ${chatId}\n\nAhora puedes recibir notificaciones a través de este bot.`;
-                
-                await this.bot.sendMessage(chatId, welcomeMessage);
-                logger.info(`✅ Respuesta automática enviada a chat_id=${chatId}`);
+                try {
+                    const welcomeMessage = `¡Hola! 👋\n\nGracias por escribirme. Tu chat_id ha sido registrado: ${chatId}\n\nAhora puedes recibir notificaciones a través de este bot.`;
+                    await this.bot.sendMessage(chatId, welcomeMessage);
+                    logger.info(`✅ Respuesta automática enviada a chat_id=${chatId}`);
+                } catch (sendError) {
+                    logger.warn(`No se pudo enviar respuesta automática a chat_id=${chatId}:`, sendError.message);
+                }
             } catch (error) {
                 logger.error('Error procesando mensaje de Telegram:', error);
+                // Log completo del error para debugging
+                if (error.stack) {
+                    logger.error('Stack trace:', error.stack);
+                }
             }
         });
 
