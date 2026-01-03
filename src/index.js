@@ -13,6 +13,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
 const WhatsAppService = require('./services/whatsappService');
 const DatabaseService = require('./services/databaseService');
 const logger = require('./utils/logger');
@@ -54,6 +57,22 @@ class WhatsAppMessagingAPI {
         // Parse JSON
         this.apiApp.use(express.json({ limit: '10mb' }));
         this.apiApp.use(express.urlencoded({ extended: true }));
+
+        // Configurar Swagger
+        this.apiApp.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+            customCss: '.swagger-ui .topbar { display: none }',
+            customSiteTitle: 'WhatsApp Messaging API - Documentación',
+            swaggerOptions: {
+                persistAuthorization: true,
+                displayRequestDuration: true,
+            }
+        }));
+
+        // Endpoint para obtener la especificación Swagger en JSON
+        this.apiApp.get('/api/docs.json', (req, res) => {
+            res.setHeader('Content-Type', 'application/json');
+            res.send(swaggerSpec);
+        });
 
         // Configurar rutas de API
         this.setupAPIRoutes();
@@ -120,6 +139,41 @@ class WhatsAppMessagingAPI {
      */
     setupAPIRoutes() {
         // Health check
+        /**
+         * @swagger
+         * /api/health:
+         *   get:
+         *     summary: Verifica el estado del servicio
+         *     tags: [Health]
+         *     responses:
+         *       200:
+         *         description: Estado del servicio
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 status:
+         *                   type: string
+         *                   example: ok
+         *                 timestamp:
+         *                   type: string
+         *                   format: date-time
+         *                 uptime:
+         *                   type: number
+         *                 database:
+         *                   type: object
+         *                   properties:
+         *                     healthy:
+         *                       type: boolean
+         *                 whatsapp:
+         *                   type: object
+         *                   properties:
+         *                     connected:
+         *                       type: boolean
+         *                     qrGenerated:
+         *                       type: boolean
+         */
         this.apiApp.get('/api/health', async (req, res) => {
             try {
                 const dbHealth = await this.databaseService.healthCheck();
@@ -146,6 +200,66 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoints de autenticación
+        /**
+         * @swagger
+         * /api/auth/login:
+         *   post:
+         *     summary: Inicia sesión y obtiene token JWT
+         *     description: Autentica un usuario y devuelve un token JWT que puede usarse para acceder a endpoints protegidos
+         *     tags: [Autenticación]
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             required:
+         *               - username
+         *               - password
+         *             properties:
+         *               username:
+         *                 type: string
+         *                 example: admin
+         *                 description: Nombre de usuario
+         *               password:
+         *                 type: string
+         *                 format: password
+         *                 example: password123
+         *                 description: Contraseña del usuario
+         *     responses:
+         *       200:
+         *         description: Login exitoso
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                   example: true
+         *                 data:
+         *                   type: object
+         *                   properties:
+         *                     token:
+         *                       type: string
+         *                       description: Token JWT para autenticación
+         *                       example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+         *                     user:
+         *                       type: object
+         *                       properties:
+         *                         id:
+         *                           type: integer
+         *                         username:
+         *                           type: string
+         *                         email:
+         *                           type: string
+         *                         fullName:
+         *                           type: string
+         *       400:
+         *         description: Datos inválidos
+         *       401:
+         *         description: Credenciales inválidas
+         */
         this.apiApp.post('/api/auth/login', async (req, res) => {
             try {
                 const { username, password } = req.body;
@@ -207,6 +321,22 @@ class WhatsAppMessagingAPI {
             }
         });
 
+        /**
+         * @swagger
+         * /api/auth/verify:
+         *   get:
+         *     summary: Verifica si el token JWT es válido
+         *     tags: [Autenticación]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: Token válido
+         *       401:
+         *         description: Token no proporcionado
+         *       403:
+         *         description: Token inválido o expirado
+         */
         this.apiApp.get('/api/auth/verify', this.authenticateToken.bind(this), (req, res) => {
             res.json({
                 success: true,
@@ -217,6 +347,39 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoint para cambiar contraseña
+        /**
+         * @swagger
+         * /api/auth/change-password:
+         *   post:
+         *     summary: Cambia la contraseña del usuario autenticado
+         *     tags: [Autenticación]
+         *     security:
+         *       - bearerAuth: []
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             required:
+         *               - currentPassword
+         *               - newPassword
+         *             properties:
+         *               currentPassword:
+         *                 type: string
+         *                 format: password
+         *               newPassword:
+         *                 type: string
+         *                 format: password
+         *                 minLength: 8
+         *     responses:
+         *       200:
+         *         description: Contraseña actualizada correctamente
+         *       400:
+         *         description: Datos inválidos o contraseña muy corta
+         *       401:
+         *         description: Contraseña actual incorrecta o token inválido
+         */
         this.apiApp.post('/api/auth/change-password', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const { currentPassword, newPassword } = req.body;
@@ -277,6 +440,35 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener estado de conexión (requiere autenticación)
+        /**
+         * @swagger
+         * /api/status:
+         *   get:
+         *     summary: Obtiene el estado de la conexión de WhatsApp
+         *     tags: [WhatsApp]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: Estado de la conexión
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                 data:
+         *                   type: object
+         *                   properties:
+         *                     connected:
+         *                       type: boolean
+         *                     qrGenerated:
+         *                       type: boolean
+         *                     clientInfo:
+         *                       type: object
+         *                       nullable: true
+         */
         this.apiApp.get('/api/status', this.authenticateToken.bind(this), (req, res) => {
             try {
                 const clientInfo = this.whatsappService.getClientInfo();
@@ -293,6 +485,38 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener QR para conexión (requiere autenticación)
+        /**
+         * @swagger
+         * /api/qr:
+         *   get:
+         *     summary: Obtiene el código QR para conectar WhatsApp
+         *     tags: [WhatsApp]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: QR code generado o ya conectado
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                 connected:
+         *                   type: boolean
+         *                 qr:
+         *                   type: string
+         *                   format: base64
+         *                   description: Imagen QR en base64 (solo si no está conectado)
+         *                 expiresAt:
+         *                   type: string
+         *                   format: date-time
+         *                 message:
+         *                   type: string
+         *       404:
+         *         description: QR no disponible
+         */
         this.apiApp.get('/api/qr', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 if (this.whatsappService.isConnected()) {
@@ -324,6 +548,73 @@ class WhatsAppMessagingAPI {
         });
 
         // Endpoint principal: Enviar mensaje
+        /**
+         * @swagger
+         * /api/send-message:
+         *   post:
+         *     summary: Envía un mensaje vía WhatsApp a un número telefónico
+         *     description: Envía un mensaje de texto a un número telefónico individual usando WhatsApp. Requiere que WhatsApp esté conectado.
+         *     tags: [Mensajes]
+         *     security:
+         *       - apiKey: []
+         *     requestBody:
+         *       required: true
+         *       content:
+         *         application/json:
+         *           schema:
+         *             type: object
+         *             required:
+         *               - countryCode
+         *               - phoneNumber
+         *               - message
+         *             properties:
+         *               countryCode:
+         *                 type: string
+         *                 example: "+58"
+         *                 description: Código de país con el signo +
+         *               phoneNumber:
+         *                 type: string
+         *                 example: "4121234567"
+         *                 description: Número telefónico sin código de país
+         *               channel:
+         *                 type: string
+         *                 example: "WHATSAPP"
+         *                 description: Canal de envío (se ignora, siempre usa WhatsApp)
+         *                 enum: [WHATSAPP, SMS]
+         *               message:
+         *                 type: string
+         *                 example: "Hola, este es un mensaje de prueba"
+         *                 description: Contenido del mensaje a enviar
+         *               secretKey:
+         *                 type: string
+         *                 description: Clave de API (alternativa al header X-API-Key)
+         *     responses:
+         *       200:
+         *         description: Mensaje enviado exitosamente
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                   example: true
+         *                 messageId:
+         *                   type: string
+         *                   example: "3EB0C767F26CXXXXX"
+         *                 phoneNumber:
+         *                   type: string
+         *                   example: "584121234567"
+         *                 error:
+         *                   type: string
+         *                   nullable: true
+         *       400:
+         *         description: Datos inválidos o faltantes
+         *       401:
+         *         description: Clave de API inválida
+         *       503:
+         *         description: WhatsApp no está conectado
+         */
         this.apiApp.post('/api/send-message', async (req, res) => {
             try {
                 const { countryCode, phoneNumber, channel, message } = req.body;
@@ -420,6 +711,44 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener historial de mensajes (requiere autenticación)
+        /**
+         * @swagger
+         * /api/messages:
+         *   get:
+         *     summary: Obtiene el historial de mensajes enviados
+         *     tags: [Mensajes]
+         *     security:
+         *       - bearerAuth: []
+         *     parameters:
+         *       - in: query
+         *         name: limit
+         *         schema:
+         *           type: integer
+         *           default: 50
+         *         description: Número máximo de mensajes a retornar
+         *       - in: query
+         *         name: offset
+         *         schema:
+         *           type: integer
+         *           default: 0
+         *         description: Offset para paginación
+         *     responses:
+         *       200:
+         *         description: Lista de mensajes
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                 data:
+         *                   type: array
+         *                   items:
+         *                     type: object
+         *                 pagination:
+         *                   type: object
+         */
         this.apiApp.get('/api/messages', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const limit = parseInt(req.query.limit) || 50;
@@ -446,6 +775,35 @@ class WhatsAppMessagingAPI {
         });
 
         // Obtener estadísticas (requiere autenticación)
+        /**
+         * @swagger
+         * /api/stats:
+         *   get:
+         *     summary: Obtiene estadísticas de mensajes
+         *     tags: [Estadísticas]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: Estadísticas de mensajes
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                 data:
+         *                   type: array
+         *                   items:
+         *                     type: object
+         *                     properties:
+         *                       status:
+         *                         type: string
+         *                         enum: [sent, failed, pending]
+         *                       count:
+         *                         type: string
+         */
         this.apiApp.get('/api/stats', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 const stats = await this.databaseService.getMessageStats();
@@ -464,6 +822,21 @@ class WhatsAppMessagingAPI {
         });
 
         // Desconectar WhatsApp (requiere autenticación)
+        /**
+         * @swagger
+         * /api/disconnect:
+         *   post:
+         *     summary: Desconecta WhatsApp manualmente
+         *     description: Desconecta la sesión de WhatsApp y genera un nuevo QR para reconectar
+         *     tags: [WhatsApp]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: WhatsApp desconectado correctamente
+         *       500:
+         *         description: Error interno del servidor
+         */
         this.apiApp.post('/api/disconnect', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 await this.whatsappService.destroy();
@@ -496,6 +869,32 @@ class WhatsAppMessagingAPI {
         });
 
         // Forzar reconexión (requiere autenticación)
+        /**
+         * @swagger
+         * /api/reconnect:
+         *   post:
+         *     summary: Fuerza la reconexión de WhatsApp
+         *     description: Inicia el proceso de reconexión manual de WhatsApp
+         *     tags: [WhatsApp]
+         *     security:
+         *       - bearerAuth: []
+         *     responses:
+         *       200:
+         *         description: Reconexión iniciada correctamente
+         *         content:
+         *           application/json:
+         *             schema:
+         *               type: object
+         *               properties:
+         *                 success:
+         *                   type: boolean
+         *                 message:
+         *                   type: string
+         *                 connected:
+         *                   type: boolean
+         *       500:
+         *         description: Error iniciando reconexión
+         */
         this.apiApp.post('/api/reconnect', this.authenticateToken.bind(this), async (req, res) => {
             try {
                 logger.info('🔄 Reconexión manual iniciada...');
@@ -557,6 +956,7 @@ class WhatsAppMessagingAPI {
                 logger.info(`🚀 API Server iniciado en puerto ${this.apiPort}`);
                 logger.info(`💬 Endpoint mensajes: http://localhost:${this.apiPort}/api/send-message`);
                 logger.info(`🔍 Health check: http://localhost:${this.apiPort}/api/health`);
+                logger.info(`📚 Swagger Docs: http://localhost:${this.apiPort}/api/docs`);
             });
 
             // Iniciar servidor de Dashboard (puerto 80)

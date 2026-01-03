@@ -23,7 +23,7 @@ ws-apimessage/
 │   └── init-db.js                # Script de inicialización de BD
 └── 📁 assets/                     # Archivos estáticos del dashboard
     ├── index.html                 # Dashboard principal
-    └── favicon/                   # Iconos del sitio
+    └── favicon_io/                # Iconos del sitio
 ```
 
 ## 🗑️ **Eliminado del Proyecto**

@@ -103,6 +103,7 @@ npm run dev
 Los servidores estarán disponibles en:
 - API: `http://localhost:3000`
 - Dashboard: `http://localhost:80`
+- Swagger Docs: `http://localhost:3000/api/docs`
 
 ## 📱 Uso
 
@@ -164,6 +165,23 @@ curl -X POST http://localhost:3000/api/send-message \
   "error": null
 }
 ```
+
+## 📚 Documentación de la API (Swagger)
+
+La documentación interactiva de la API está disponible en Swagger:
+
+- **Producción**: `https://wsapiback.arsystech.net/api/docs`
+- **Desarrollo**: `http://localhost:3000/api/docs`
+
+### Uso de Swagger
+
+1. Accede a `/api/docs` en el navegador
+2. Usa el endpoint `/api/auth/login` para obtener un token JWT
+3. Haz clic en el botón **"Authorize"** (🔒) en la parte superior
+4. Ingresa el token obtenido en el formato: `Bearer <tu_token>`
+5. Ahora puedes probar todos los endpoints protegidos directamente desde Swagger
+
+**Nota**: El endpoint de login está disponible sin autenticación y devuelve un token JWT que puedes usar para acceder a los demás endpoints.
 
 ## 🔌 API Endpoints
 
