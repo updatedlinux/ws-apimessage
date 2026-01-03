@@ -1,0 +1,25 @@
+[Unit]
+Description=WhatsApp Messaging API Service
+Documentation=https://github.com/your-repo/whatsapp-messaging-api
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/whatsapp-messaging-api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=whatsapp-messaging-api
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/opt/whatsapp-messaging-api/sessions /opt/whatsapp-messaging-api/logs
+
+[Install]
+WantedBy=multi-user.target
+

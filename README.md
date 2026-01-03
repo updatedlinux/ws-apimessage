@@ -1,0 +1,382 @@
+# WhatsApp Messaging API
+
+API independiente para envío de mensajes vía WhatsApp con dashboard de gestión integrado.
+
+## 🚀 Características
+
+- ✅ **Conexión vía QR**: Escanea el código QR con WhatsApp para conectar
+- ✅ **Envío de Mensajes**: API REST para enviar mensajes a números telefónicos individuales
+- ✅ **Persistencia de Sesión**: Mantiene la conexión activa automáticamente
+- ✅ **Dashboard Web**: Interfaz web para gestión y monitoreo
+- ✅ **Autenticación JWT**: Sistema de autenticación seguro
+- ✅ **Historial de Mensajes**: Registro completo de todos los mensajes enviados
+- ✅ **Estadísticas**: Métricas y estadísticas de mensajes
+
+## 📋 Requisitos
+
+- Node.js 16+
+- MariaDB/MySQL 5.7+
+- Chromium (para whatsapp-web.js)
+
+## 🛠️ Instalación
+
+### 1. Clonar e instalar dependencias
+
+```bash
+# Clonar el repositorio
+git clone <repository-url>
+cd ws-apimessage
+
+# Instalar dependencias
+npm install
+```
+
+### 2. Configurar base de datos
+
+```bash
+# Copiar archivo de ejemplo
+cp env.example .env
+
+# Editar .env con tus configuraciones
+nano .env
+```
+
+Configura las siguientes variables en `.env`:
+
+```env
+# Puerto del servidor
+PORT=3003
+
+# Configuración de base de datos MariaDB
+DB_HOST=localhost
+DB_USER=whatsapp_user
+DB_PASSWORD=your_password
+DB_NAME=whatsapp_messaging
+DB_PORT=3306
+
+# Configuración de seguridad
+API_SECRET_KEY=your_secret_key_here
+JWT_SECRET=your_jwt_secret_here
+```
+
+### 3. Inicializar base de datos
+
+```bash
+# Ejecutar script de inicialización
+npm run init-db
+```
+
+Este script:
+- Crea la base de datos si no existe
+- Crea todas las tablas necesarias
+- Crea un usuario administrador por defecto
+
+### 4. Iniciar el servidor
+
+```bash
+# Modo producción
+npm start
+
+# Modo desarrollo (con nodemon)
+npm run dev
+```
+
+El servidor estará disponible en `http://localhost:3003`
+
+## 📱 Uso
+
+### Dashboard Web
+
+1. Accede a `http://localhost:3003`
+2. Inicia sesión con el usuario admin creado durante la inicialización
+3. Escanea el código QR que aparece en el dashboard
+4. Una vez conectado, podrás ver el estado de conexión y el historial de mensajes
+
+### API REST
+
+#### Enviar Mensaje
+
+```bash
+curl -X POST http://localhost:3003/api/send-message \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_secret_key_here" \
+  -d '{
+    "countryCode": "+58",
+    "phoneNumber": "4121234567",
+    "message": "Hola, este es un mensaje de prueba"
+  }'
+```
+
+**Formato del Request:**
+
+```json
+{
+  "countryCode": "+58",
+  "phoneNumber": "4121234567",
+  "channel": "WHATSAPP",
+  "message": "Tu mensaje aquí"
+}
+```
+
+**Nota:** El campo `channel` es opcional y se ignora (siempre se envía por WhatsApp).
+
+**Respuesta exitosa:**
+
+```json
+{
+  "success": true,
+  "messageId": "3EB0C767F26CXXXXX",
+  "phoneNumber": "584121234567",
+  "error": null
+}
+```
+
+## 🔌 API Endpoints
+
+### Autenticación
+
+#### POST /api/auth/login
+Inicia sesión y obtiene token JWT.
+
+**Body:**
+```json
+{
+  "username": "admin",
+  "password": "tu_password"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "jwt_token_here",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com",
+      "fullName": "Administrador"
+    }
+  }
+}
+```
+
+#### GET /api/auth/verify
+Verifica si el token JWT es válido.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+#### POST /api/auth/change-password
+Cambia la contraseña del usuario autenticado.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Body:**
+```json
+{
+  "currentPassword": "password_actual",
+  "newPassword": "nueva_password"
+}
+```
+
+### WhatsApp
+
+#### GET /api/status
+Obtiene el estado de la conexión de WhatsApp.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "connected": true,
+    "qrGenerated": false,
+    "clientInfo": {
+      "name": "Tu Nombre",
+      "phone": "584121234567@c.us",
+      "platform": "android",
+      "isConnected": true
+    }
+  }
+}
+```
+
+#### GET /api/qr
+Obtiene el código QR para conectar WhatsApp.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "connected": false,
+  "qr": "base64_image_data",
+  "expiresAt": "2025-01-13T23:32:16.417Z"
+}
+```
+
+#### POST /api/send-message
+Envía un mensaje a un número telefónico.
+
+**Headers (opcional):**
+```
+X-API-Key: your_secret_key_here
+```
+
+**Body:**
+```json
+{
+  "countryCode": "+58",
+  "phoneNumber": "4121234567",
+  "message": "Mensaje a enviar"
+}
+```
+
+#### GET /api/messages
+Obtiene el historial de mensajes enviados.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:**
+- `limit` (opcional): Número de mensajes a retornar (default: 50)
+- `offset` (opcional): Offset para paginación (default: 0)
+
+#### GET /api/stats
+Obtiene estadísticas de mensajes.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "status": "sent",
+      "count": "150"
+    },
+    {
+      "status": "failed",
+      "count": "5"
+    }
+  ]
+}
+```
+
+#### POST /api/disconnect
+Desconecta WhatsApp manualmente.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+#### POST /api/reconnect
+Fuerza la reconexión de WhatsApp.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+### Health Check
+
+#### GET /api/health
+Verifica el estado del servicio.
+
+**Respuesta:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-01-13T23:32:16.417Z",
+  "uptime": 3600,
+  "database": {
+    "healthy": true
+  },
+  "whatsapp": {
+    "connected": true,
+    "qrGenerated": false
+  }
+}
+```
+
+## 🗄️ Base de Datos
+
+El script de inicialización crea las siguientes tablas:
+
+- **ws_config**: Configuración del servicio
+- **ws_messages**: Historial de mensajes enviados
+- **ws_connections**: Logs de conexión
+- **ws_users**: Usuarios del dashboard
+- **ws_sessions**: Sesiones de WhatsApp
+
+## 🔧 Solución de Problemas
+
+### Error de Conexión a Base de Datos
+
+- Verifica que MariaDB/MySQL esté corriendo
+- Confirma las credenciales en el archivo `.env`
+- Asegúrate de que la base de datos existe
+
+### QR No Aparece
+
+- Limpia las sesiones: `rm -rf sessions/*`
+- Reinicia el servicio
+- Verifica que no haya procesos de Chrome bloqueados
+
+### Error al Enviar Mensajes
+
+- Verifica que WhatsApp esté conectado (revisa el dashboard)
+- Confirma que el número tenga el formato correcto (código de país + número)
+- Revisa los logs del servidor para más detalles
+
+### Problemas de Autenticación
+
+- Verifica que el token JWT no haya expirado
+- Asegúrate de incluir el header `Authorization: Bearer <token>`
+- Revisa que el `JWT_SECRET` en `.env` sea el correcto
+
+## 📝 Logs
+
+Los logs se guardan en:
+- Consola del terminal
+- Archivo: `./logs/whatsapp-service.log` (si está configurado)
+
+## 🔒 Seguridad
+
+- Autenticación JWT requerida para endpoints del dashboard
+- API Key opcional para endpoint de envío de mensajes
+- Contraseñas hasheadas con bcrypt
+- Validación de entrada en todos los endpoints
+- Rate limiting configurable
+
+## 📞 Soporte
+
+Para problemas o preguntas, revisa los logs del servidor o crea un issue en el repositorio.
+
+---
+
+**Versión:** 2.0.0  
+**Licencia:** MIT

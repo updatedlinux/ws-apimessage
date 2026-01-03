@@ -1,0 +1,17 @@
+# Configuración para Nginx Proxy Manager
+# Archivo: nginx-proxy-config.json
+
+{
+  "domain_names": ["wschat.bonaventurecclub.com"],
+  "forward_scheme": "http",
+  "forward_host": "127.0.0.1",
+  "forward_port": 3003,
+  "allow_websocket_upgrade": true,
+  "access_list_id": "0",
+  "certificate_id": 1,
+  "ssl_forced": true,
+  "http2_support": true,
+  "block_exploits": true,
+  "caching_enabled": false,
+  "advanced_config": "# Configuración avanzada para Condo360 WhatsApp Service\n# Timeout para conexiones largas\nproxy_read_timeout 300s;\nproxy_connect_timeout 75s;\nproxy_send_timeout 300s;\n\n# Headers para WebSocket\nproxy_set_header Upgrade $http_upgrade;\nproxy_set_header Connection \"upgrade\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n\n# Rate limiting\nlimit_req_zone $binary_remote_addr zone=whatsapp_api:10m rate=10r/s;\nlimit_req zone=whatsapp_api burst=20 nodelay;\n\n# CORS headers\nadd_header Access-Control-Allow-Origin * always;\nadd_header Access-Control-Allow-Methods \"GET, POST, OPTIONS\" always;\nadd_header Access-Control-Allow-Headers \"Content-Type, Authorization\" always;\n\n# Security headers\nadd_header X-Frame-Options DENY always;\nadd_header X-Content-Type-Options nosniff always;\nadd_header X-XSS-Protection \"1; mode=block\" always;\nadd_header Referrer-Policy \"strict-origin-when-cross-origin\" always;\n\n# Cache control para API\nlocation /api/ {\n    add_header Cache-Control \"no-cache, no-store, must-revalidate\" always;\n    add_header Pragma \"no-cache\" always;\n    add_header Expires \"0\" always;\n}\n\n# Health check endpoint\nlocation /health {\n    access_log off;\n    return 200 \"healthy\\n\";\n    add_header Content-Type text/plain;\n}"
+}

@@ -1,0 +1,3545 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultron OB Monitor - Sistema de Monitoreo Docker Swarm</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Google reCAPTCHA v3 -->
+    <script src="https://www.google.com/recaptcha/api.js?render=6LcYhgssAAAAAFYB9PS3EBe5NQXYTZH9bK_Bp5uj"></script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="favicon/favicon-96x96.png">
+    <link rel="apple-touch-icon" href="favicon/apple-touch-icon.png">
+    <link rel="manifest" href="favicon/site.webmanifest">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+
+        /* Loader */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: transform 0.8s ease-in-out;
+            transform: scale(1);
+        }
+
+        .loader img {
+            width: 80px;
+            height: 80px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+        }
+
+        .loader.hidden {
+            transform: scale(0);
+            pointer-events: none;
+        }
+
+        /* Login Section */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #00568E 0%, #0066A3 100%);
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-box h2 {
+            color: #00568E;
+            font-size: 28px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .login-form-group {
+            margin-bottom: 20px;
+        }
+
+        .login-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00568E;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .login-form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .login-form-group input:focus {
+            outline: none;
+            border-color: #00568E;
+        }
+
+        .login-btn {
+            width: 100%;
+            background: #00568E;
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 86, 142, 0.3);
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 86, 142, 0.4);
+            background: #0066A3;
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #00568E 0%, #0066A3 100%);
+            padding: 20px 40px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 999;
+            height: 100px;
+        }
+
+        .logo {
+            width: 300px;
+            height: auto;
+            max-height: 60px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+            object-fit: contain;
+        }
+
+        .header-info {
+            color: white;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-info h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header-info .last-update {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .logout-btn,
+        .change-password-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 20px;
+            border: 2px solid white;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover,
+        .change-password-btn:hover {
+            background: white;
+            color: #00568E;
+        }
+
+        /* Sidebar Menu */
+        .sidebar {
+            width: 250px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            min-height: calc(100vh - 100px);
+            position: fixed;
+            left: 0;
+            top: 100px;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .menu-item {
+            padding: 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .menu-item:hover {
+            background: #f8f9fa;
+            color: #00568E;
+        }
+
+        .menu-item.active {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            color: #00568E;
+            border-left: 4px solid #00568E;
+        }
+
+        .menu-item i {
+            font-size: 20px;
+            width: 24px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 250px;
+            margin-top: 100px;
+            padding: 30px;
+            min-height: calc(100vh - 100px);
+            box-sizing: border-box;
+            width: calc(100% - 250px);
+        }
+
+        .content-section {
+            display: none;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .content-section.active {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Section Styles */
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .section-header h2 {
+            color: #00568E;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .refresh-indicator .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #00568E;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00568E;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #00568E;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        /* Hosts Grid */
+        .hosts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        /* Docker Grid - Layout horizontal con scroll */
+        #dockerContent {
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        #dockerContent .hosts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            min-width: 100%;
+        }
+
+        #dockerContent .host-card {
+            min-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        #dockerContent .host-card h3 {
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+
+        #dockerContent .host-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            min-width: 150px;
+            flex-shrink: 0;
+        }
+
+        #dockerContent .host-stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        #dockerContent .host-stat-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            word-break: break-word;
+        }
+
+
+        .host-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid #00568E;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .host-card:hover {
+            box-shadow: 0 4px 15px rgba(0, 86, 142, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .host-card.offline {
+            border-left-color: #dc3545;
+        }
+
+        .host-card h3 {
+            color: #00568E;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .host-stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .host-stat:last-child {
+            border-bottom: none;
+        }
+
+        .host-stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .host-stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Charts Container */
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-card h3 {
+            color: #00568E;
+            margin-bottom: 15px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Docker Tabs */
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .tab-button:hover {
+            color: #00568E;
+            background: #f8f9fa;
+        }
+
+        .tab-button.active {
+            color: #00568E;
+            border-bottom-color: #00568E;
+            font-weight: 600;
+        }
+
+        /* Badge de réplicas con colores (reutilizando status-badge) */
+        .replica-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .replica-badge.complete {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .replica-badge.partial {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .replica-badge.incomplete {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Texto truncado para imágenes */
+        .image-text {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            display: block;
+        }
+
+        /* Metrics Table */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .metrics-table th,
+        .metrics-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .metrics-table th {
+            background: #00568E;
+            color: white;
+            font-weight: 600;
+        }
+
+        .metrics-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Buttons */
+        .btn {
+            background: #00568E;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 86, 142, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 86, 142, 0.4);
+            background: #0066A3;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .modal-header h2 {
+            color: #00568E;
+            font-size: 24px;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: #00568E;
+        }
+
+        /* Hidden content when not logged in */
+        .content-hidden {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .logo {
+                width: 200px;
+            }
+
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loader -->
+    <div class="loader" id="loader">
+        <img src="loader.webp" alt="Cargando...">
+    </div>
+
+    <!-- Login Section -->
+    <div id="loginSection" class="login-container">
+        <div class="login-box">
+            <h2><i class="fas fa-lock"></i> Iniciar Sesión</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="login-form-group">
+                    <label><i class="fas fa-user"></i> Usuario</label>
+                    <input type="text" id="loginUsername" required autocomplete="username">
+                </div>
+                <div class="login-form-group">
+                    <label><i class="fas fa-key"></i> Contraseña</label>
+                    <input type="password" id="loginPassword" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="login-btn" id="loginBtn">
+                    <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
+                </button>
+                <div id="loginError" class="error-message" style="display: none;"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content (hidden until logged in) -->
+    <div id="mainContent" class="content-hidden">
+        <!-- Header -->
+        <div class="header">
+            <img src="logo.webp" alt="SUNA Logo" class="logo">
+            <div class="header-info">
+                <div>
+                    <h1>Monitor de Sistema de Adjudicaciones</h1>
+                    <div class="last-update" id="lastUpdate">Sistema de Monitoreo OrderBook</div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="change-password-btn" onclick="openChangePasswordModal()">
+                        <i class="fas fa-key"></i> Cambiar Contraseña
+                    </button>
+                    <button class="logout-btn" onclick="handleLogout()">
+                        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Menu -->
+        <div class="sidebar" id="sidebar">
+            <div class="menu-item active" onclick="showSection('hosts')">
+                <i class="fas fa-server"></i>
+                <span>Hosts</span>
+            </div>
+            <div class="menu-item" onclick="showSection('metrics')">
+                <i class="fas fa-chart-line"></i>
+                <span>Métricas</span>
+            </div>
+            <div class="menu-item" onclick="showSection('charts')">
+                <i class="fas fa-chart-area"></i>
+                <span>Gráficas</span>
+            </div>
+            <div class="menu-item" onclick="showSection('docker')">
+                <i class="fab fa-docker"></i>
+                <span>Swarm & Containers</span>
+            </div>
+            <div class="menu-item" onclick="openAuditModal()">
+                <i class="fas fa-envelope"></i>
+                <span>Auditoría de Correos</span>
+            </div>
+            <div class="menu-item" onclick="openLogsModal()">
+                <i class="fas fa-file-alt"></i>
+                <span>Logs en Tiempo Real</span>
+            </div>
+            <div class="menu-item" onclick="openAlertsModal()">
+                <i class="fas fa-bell"></i>
+                <span>Alertas en Tiempo Real</span>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Hosts Section -->
+            <div id="hostsSection" class="content-section active">
+                <div class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-server"></i> Listado de Hosts</h2>
+                        <div class="refresh-indicator">
+                            <div class="spinner"></div>
+                            <span>Actualizando cada minuto...</span>
+                        </div>
+                    </div>
+                    <div id="hostsGrid" class="hosts-grid">
+                        <div style="text-align: center; padding: 40px; color: #666; grid-column: 1 / -1;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i>
+                            <p>Cargando hosts...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Section -->
+            <div id="metricsSection" class="content-section">
+                <div class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-chart-line"></i> Métricas por Host</h2>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-server"></i> Seleccionar Host</label>
+                            <select id="metricsHostSelect" onchange="loadHostMetrics()">
+                                <option value="">Seleccione un host...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-clock"></i> Rango de Tiempo</label>
+                            <select id="metricsTimeRange" onchange="loadHostMetrics()">
+                                <option value="realtime">Tiempo Real</option>
+                                <option value="30min">Últimos 30 minutos</option>
+                                <option value="1hour" selected>Última hora</option>
+                                <option value="24hours">Últimas 24 horas</option>
+                                <option value="7days">Últimos 7 días</option>
+                                <option value="30days">Últimos 30 días</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="metricsContent" style="margin-top: 20px;">
+                        <p style="text-align: center; color: #666; padding: 40px;">
+                            Seleccione un host para ver sus métricas
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div id="chartsSection" class="content-section">
+                <div class="section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-chart-area"></i> Gráficas de Métricas</h2>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-server"></i> Seleccionar Host</label>
+                            <select id="chartsHostSelect" onchange="loadCharts()">
+                                <option value="">Seleccione un host...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-clock"></i> Rango de Tiempo</label>
+                            <select id="chartsTimeRange" onchange="loadCharts()">
+                                <option value="realtime">Tiempo Real (10 min)</option>
+                                <option value="30min">Últimos 30 minutos</option>
+                                <option value="1hour" selected>Última hora</option>
+                                <option value="24hours">Últimas 24 horas</option>
+                                <option value="7days">Últimos 7 días</option>
+                                <option value="30days">Últimos 30 días</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="chartsContent" class="charts-container" style="margin-top: 20px;">
+                        <p style="text-align: center; color: #666; padding: 40px; grid-column: 1 / -1;">
+                            Seleccione un host para ver las gráficas
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Docker Swarm & Containers Section -->
+            <div id="dockerSection" class="content-section">
+                <div class="section">
+                    <div class="section-header">
+                        <h2><i class="fab fa-docker"></i> Swarm & Containers</h2>
+                        <div class="refresh-indicator">
+                            <div class="spinner"></div>
+                            <span>Actualizando cada minuto...</span>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-server"></i> Seleccionar Host</label>
+                            <select id="dockerHostSelect" onchange="loadDockerData()">
+                                <option value="">Seleccione un host...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-layer-group"></i> Tipo</label>
+                            <select id="dockerTypeSelect" onchange="loadDockerData()">
+                                <option value="services">Servicios Docker Swarm</option>
+                                <option value="containers">Contenedores Docker</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="dockerContent" style="margin-top: 20px;">
+                        <p style="text-align: center; color: #666; padding: 40px;">
+                            Seleccione un host para ver los servicios y contenedores
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Auditoría de Correos -->
+    <div id="modalAudit" class="modal">
+        <div class="modal-content" style="max-width: 90%; height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h2><i class="fas fa-envelope"></i> Auditoría de Correos</h2>
+                    <div id="auditStatus" style="display: none;">
+                        <span class="status-badge online"><i class="fas fa-circle fa-xs"></i> En vivo</span>
+                    </div>
+                    <div id="auditRefreshIndicator" style="display: none;" class="refresh-indicator">
+                        <div class="spinner"></div>
+                        <span>Actualizando cada minuto en vivo</span>
+                    </div>
+                </div>
+                <span class="close" onclick="closeModal('audit')">&times;</span>
+            </div>
+            <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div class="form-row" style="margin-bottom: 20px; flex-shrink: 0;">
+                    <div class="form-group" style="flex: 1;">
+                        <label><i class="fas fa-search"></i> Tipo de Búsqueda</label>
+                        <select id="auditSearchType" onchange="handleAuditSearchTypeChange()">
+                            <option value="realtime">Tiempo Real (Todos los correos)</option>
+                            <option value="today">Correos de Hoy</option>
+                            <option value="date">Buscar por Fecha</option>
+                            <option value="email">Buscar por Email</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="auditDateGroup" style="display: none; width: 200px;">
+                        <label><i class="fas fa-calendar"></i> Fecha</label>
+                        <input type="date" id="auditDateInput" onchange="handleAuditSearch()" style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px;">
+                    </div>
+                    <div class="form-group" id="auditEmailGroup" style="display: none; flex: 1;">
+                        <label><i class="fas fa-at"></i> Email del Destinatario</label>
+                        <input type="text" id="auditEmailInput" placeholder="ejemplo@dominio.com" onchange="handleAuditSearch()" style="width: 100%; padding: 12px; border: 2px solid #e9ecef; border-radius: 8px;">
+                    </div>
+                    <div class="form-group" style="width: 200px;">
+                        <label>&nbsp;</label>
+                        <button id="auditSearchBtn" class="btn" onclick="handleAuditSearch()" style="width: 100%; justify-content: center;">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <div id="auditContainer" style="
+                    flex: 1; 
+                    background: #f8f9fa; 
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    overflow-y: auto;
+                ">
+                    <div style="text-align: center; color: #666; margin-top: 50px;">
+                        Seleccione un tipo de búsqueda para ver los correos
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Logs en Realtime -->
+    <div id="modalLogs" class="modal">
+        <div class="modal-content" style="max-width: 90%; height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h2><i class="fas fa-file-alt"></i> Logs en Realtime</h2>
+                    <div id="logsStatus" style="display: none;">
+                        <span class="status-badge online"><i class="fas fa-circle fa-xs"></i> En vivo</span>
+                    </div>
+                </div>
+                <span class="close" onclick="closeModal('logs')">&times;</span>
+            </div>
+            <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div class="form-row" style="margin-bottom: 20px; flex-shrink: 0;">
+                    <div class="form-group" style="flex: 1;">
+                        <label><i class="fas fa-database"></i> DataView (Kibana)</label>
+                        <select id="logsDataViewSelect" onchange="handleDataViewChange()">
+                            <option value="">Seleccione un DataView...</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="width: 200px;">
+                        <label><i class="fas fa-clock"></i> Rango de Tiempo</label>
+                        <select id="logsTimeRangeSelect" onchange="handleTimeRangeChange()">
+                            <option value="15m">Últimos 15 minutos</option>
+                            <option value="30m">Últimos 30 minutos</option>
+                            <option value="1h" selected>Última hora</option>
+                            <option value="3h">Últimas 3 horas</option>
+                            <option value="6h">Últimas 6 horas</option>
+                            <option value="12h">Últimas 12 horas</option>
+                            <option value="24h">Últimas 24 horas</option>
+                            <option value="48h">Últimas 48 horas</option>
+                            <option value="7d">Últimos 7 días</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="width: 200px;">
+                        <label>&nbsp;</label>
+                        <button id="toggleLogsBtn" class="btn" onclick="toggleLogs()" disabled
+                            style="width: 100%; justify-content: center;">
+                            <i class="fas fa-play"></i> Iniciar
+                        </button>
+                    </div>
+                </div>
+
+                <div id="logsContainer" style="
+                    flex: 1; 
+                    background: #1e1e1e; 
+                    color: #d4d4d4; 
+                    font-family: 'Consolas', 'Monaco', monospace; 
+                    padding: 15px; 
+                    border-radius: 8px; 
+                    overflow-y: auto; 
+                    font-size: 13px;
+                    line-height: 1.5;
+                ">
+                    <div style="text-align: center; color: #666; margin-top: 50px;">
+                        Seleccione un DataView e inicie la captura para ver los logs
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Alertas en Tiempo Real -->
+    <div id="modalAlerts" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-bell"></i> Alertas en Tiempo Real</h2>
+                <span class="close" onclick="closeModal('alerts')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="text-align: center; padding: 60px 20px;">
+                    <i class="fas fa-clock" style="font-size: 64px; color: #00568E; margin-bottom: 20px;"></i>
+                    <h3 style="color: #00568E; margin-bottom: 10px;">Próximamente</h3>
+                    <p style="color: #666;">Esta funcionalidad estará disponible próximamente.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para cambio de contraseña -->
+    <div id="modalChangePassword" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-key"></i> Cambiar Contraseña</h2>
+                <span class="close" onclick="closeModal('changePassword')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="changePasswordForm" onsubmit="handleChangePassword(event)">
+                    <div class="form-group">
+                        <label><i class="fas fa-lock"></i> Contraseña Actual</label>
+                        <input type="password" id="currentPassword" required autocomplete="current-password">
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-lock"></i> Nueva Contraseña</label>
+                        <input type="password" id="newPassword" required autocomplete="new-password" minlength="8">
+                        <small style="color: #666; font-size: 12px; margin-top: 5px; display: block;">
+                            Mínimo 8 caracteres
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-lock"></i> Confirmar Nueva Contraseña</label>
+                        <input type="password" id="confirmPassword" required autocomplete="new-password" minlength="8">
+                    </div>
+                    <div id="changePasswordError" class="error-message" style="display: none; margin-bottom: 15px;">
+                    </div>
+                    <div id="changePasswordSuccess"
+                        style="display: none; margin-bottom: 15px; padding: 12px; background: #d4edda; color: #155724; border-radius: 8px; text-align: center;">
+                        <i class="fas fa-check-circle"></i> Contraseña cambiada exitosamente
+                    </div>
+                    <button type="submit" class="btn" id="changePasswordBtn" style="margin-top: 10px; width: 100%;">
+                        <i class="fas fa-save"></i> Cambiar Contraseña
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para alerta de expiración de sesión -->
+    <div id="modalSessionExpiry" class="modal" style="z-index: 20000;">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; border-radius: 20px 20px 0 0; margin: -30px -30px 25px -30px; padding: 20px 30px;">
+                <h2 style="color: white; margin: 0;"><i class="fas fa-exclamation-triangle"></i> Sesión por Expirar</h2>
+                <span class="close" onclick="closeSessionExpiryModal()" style="color: white; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <i class="fas fa-clock" style="font-size: 48px; color: #ff9800; margin-bottom: 15px;"></i>
+                    <p style="font-size: 16px; color: #333; margin-bottom: 10px;">
+                        Tu sesión expirará en <strong id="sessionTimeRemaining" style="color: #ff9800; font-size: 18px;">--:--</strong>
+                    </p>
+                    <p style="font-size: 14px; color: #666;">
+                        Por favor, guarda tu trabajo. Serás redirigido al login automáticamente cuando expire la sesión.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 25px;">
+                    <button onclick="closeSessionExpiryModal()" class="btn" style="flex: 1; background: #6c757d;">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
+                    <button onclick="handleLogout()" class="btn" style="flex: 1; background: #00568E;">
+                        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let authToken = null;
+        let charts = {};
+        let hostsUpdateInterval = null;
+        let chartsUpdateInterval = null;
+        let metricsUpdateInterval = null;
+        let dockerUpdateInterval = null;
+        let logsInterval = null;
+        let isLogsActive = false;
+        let lastLogTimestamp = null; // Para tracking de logs nuevos en tiempo real
+        let tokenCheckInterval = null; // Intervalo para verificar expiración de token
+        let sessionExpiryModalShown = false; // Flag para evitar mostrar el modal múltiples veces
+        let auditInterval = null; // Intervalo para actualización automática de auditoría
+        let isAuditRealtime = false; // Flag para saber si está en modo tiempo real
+
+        // --- Logic for Audit (Correos) ---
+
+        function openAuditModal() {
+            const modal = document.getElementById('modalAudit');
+            if (!modal) {
+                console.error('❌ Modal audit no encontrado');
+                return;
+            }
+            modal.style.display = 'block';
+            // Resetear estado
+            isAuditRealtime = false;
+            document.getElementById('auditStatus').style.display = 'none';
+            document.getElementById('auditRefreshIndicator').style.display = 'none';
+            // Establecer fecha de hoy por defecto en el input de fecha
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('auditDateInput').value = today;
+        }
+
+        function handleAuditSearchTypeChange() {
+            const searchType = document.getElementById('auditSearchType').value;
+            const dateGroup = document.getElementById('auditDateGroup');
+            const emailGroup = document.getElementById('auditEmailGroup');
+            
+            // Ocultar todos los grupos
+            dateGroup.style.display = 'none';
+            emailGroup.style.display = 'none';
+            
+            // Mostrar el grupo correspondiente
+            if (searchType === 'date') {
+                dateGroup.style.display = 'block';
+            } else if (searchType === 'email') {
+                emailGroup.style.display = 'block';
+            }
+            
+            // Limpiar resultados
+            document.getElementById('auditContainer').innerHTML = 
+                '<div style="text-align: center; color: #666; margin-top: 50px;">Seleccione un tipo de búsqueda para ver los correos</div>';
+            
+            // Detener actualización automática si estaba activa
+            if (auditInterval) {
+                clearInterval(auditInterval);
+                auditInterval = null;
+                isAuditRealtime = false;
+                document.getElementById('auditStatus').style.display = 'none';
+                document.getElementById('auditRefreshIndicator').style.display = 'none';
+            }
+        }
+
+        async function handleAuditSearch() {
+            const searchType = document.getElementById('auditSearchType').value;
+            const container = document.getElementById('auditContainer');
+            
+            // Detener actualización anterior si existe
+            if (auditInterval) {
+                clearInterval(auditInterval);
+                auditInterval = null;
+            }
+            
+            // Mostrar loading
+            container.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 32px;"></i><p>Cargando correos...</p></div>';
+            
+            try {
+                let url = '';
+                
+                if (searchType === 'realtime') {
+                    url = `${API_BASE}/audit/all?limit=100&offset=0`;
+                    isAuditRealtime = true;
+                    document.getElementById('auditStatus').style.display = 'block';
+                    document.getElementById('auditRefreshIndicator').style.display = 'flex';
+                } else if (searchType === 'today') {
+                    url = `${API_BASE}/audit/today`;
+                    isAuditRealtime = false;
+                    document.getElementById('auditStatus').style.display = 'none';
+                    document.getElementById('auditRefreshIndicator').style.display = 'none';
+                } else if (searchType === 'date') {
+                    const date = document.getElementById('auditDateInput').value;
+                    if (!date) {
+                        container.innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 40px;">Por favor, seleccione una fecha</div>';
+                        return;
+                    }
+                    url = `${API_BASE}/audit/by-date?date=${date}`;
+                    isAuditRealtime = false;
+                    document.getElementById('auditStatus').style.display = 'none';
+                    document.getElementById('auditRefreshIndicator').style.display = 'none';
+                } else if (searchType === 'email') {
+                    const email = document.getElementById('auditEmailInput').value.trim();
+                    if (!email) {
+                        container.innerHTML = '<div style="text-align: center; color: #d32f2f; padding: 40px;">Por favor, ingrese un email</div>';
+                        return;
+                    }
+                    url = `${API_BASE}/audit/by-email?email=${encodeURIComponent(email)}`;
+                    isAuditRealtime = false;
+                    document.getElementById('auditStatus').style.display = 'none';
+                    document.getElementById('auditRefreshIndicator').style.display = 'none';
+                }
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                renderAuditResults(data);
+                
+                // Si es tiempo real, configurar actualización automática cada minuto
+                if (searchType === 'realtime') {
+                    auditInterval = setInterval(() => {
+                        handleAuditSearch();
+                    }, 60000); // Cada minuto
+                }
+                
+            } catch (error) {
+                console.error('Error buscando correos:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; color: #d32f2f; padding: 40px;">
+                        <i class="fas fa-exclamation-triangle"></i><br>
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function renderAuditResults(correos) {
+            const container = document.getElementById('auditContainer');
+            
+            if (!correos || correos.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; margin-top: 50px;">No hay correos disponibles</div>';
+                return;
+            }
+            
+            // Crear HTML con cards estilizadas
+            const html = correos.map(correo => {
+                const enviadoClass = correo.enviado ? 'online' : 'offline';
+                const enviadoText = correo.enviado ? 'Enviado' : 'No Enviado';
+                const actionColor = correo.enviado ? '#28a745' : '#dc3545';
+                
+                return `
+                    <div class="host-card" style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="color: #00568E; font-size: 18px; margin: 0;">
+                                <i class="fas fa-envelope"></i> ${escapeHtml(correo.subject || 'Sin asunto')}
+                            </h3>
+                            <span class="status-badge ${enviadoClass}">${enviadoText}</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                            <div class="host-stat">
+                                <span class="host-stat-label"><i class="fas fa-calendar"></i> Fecha</span>
+                                <span class="host-stat-value" style="font-size: 13px;">${escapeHtml(correo.fecha)}</span>
+                            </div>
+                            <div class="host-stat">
+                                <span class="host-stat-label"><i class="fas fa-user"></i> De</span>
+                                <span class="host-stat-value" style="font-size: 13px;">${escapeHtml(correo.from)}</span>
+                            </div>
+                            <div class="host-stat">
+                                <span class="host-stat-label"><i class="fas fa-user-friends"></i> Para</span>
+                                <span class="host-stat-value" style="font-size: 13px;">${escapeHtml(correo.to)}</span>
+                            </div>
+                            <div class="host-stat">
+                                <span class="host-stat-label"><i class="fas fa-chart-line"></i> Score</span>
+                                <span class="host-stat-value" style="font-size: 13px; color: ${correo.score < 0 ? '#28a745' : '#dc3545'};">
+                                    ${correo.score !== null ? correo.score.toFixed(2) : 'N/A'}
+                                </span>
+                            </div>
+                            <div class="host-stat">
+                                <span class="host-stat-label"><i class="fas fa-cog"></i> Acción</span>
+                                <span class="host-stat-value" style="font-size: 12px; color: ${actionColor};">
+                                    ${escapeHtml(correo.action || 'N/A')}
+                                </span>
+                            </div>
+                            <div class="host-stat" style="grid-column: 1 / -1;">
+                                <span class="host-stat-label"><i class="fas fa-info-circle"></i> Estado</span>
+                                <span class="host-stat-value" style="font-size: 13px;">
+                                    ${escapeHtml(correo.actionHumano || 'N/A')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = html;
+        }
+
+        // --- Logic for Real-time Logs ---
+
+        async function openLogsModal() {
+            console.log('🔵 openLogsModal() llamado');
+            const modal = document.getElementById('modalLogs');
+            if (!modal) {
+                console.error('❌ Modal logs no encontrado');
+                return;
+            }
+            modal.style.display = 'block';
+            console.log('✅ Modal mostrado, cargando DataViews...');
+            await loadDataViews();
+        }
+
+        async function loadDataViews() {
+            const select = document.getElementById('logsDataViewSelect');
+            if (!select) {
+                console.error('Select element logsDataViewSelect no encontrado');
+                return;
+            }
+
+            let errorMsg = select.parentElement.querySelector('.error-message');
+            
+            // Verificar que haya token de autenticación
+            if (!authToken) {
+                console.error('No hay token de autenticación disponible');
+                select.innerHTML = '<option value="">Error: No autenticado</option>';
+                select.disabled = true;
+                if (!errorMsg) {
+                    errorMsg = document.createElement('div');
+                    errorMsg.className = 'error-message';
+                    errorMsg.style.marginTop = '5px';
+                    errorMsg.style.color = '#d32f2f';
+                    select.parentElement.appendChild(errorMsg);
+                }
+                errorMsg.textContent = 'Error: No hay sesión activa. Por favor, recarga la página.';
+                return;
+            }
+            
+            // Mostrar estado de carga
+            select.innerHTML = '<option value="">Cargando DataViews...</option>';
+            select.disabled = true;
+            
+            // Remover mensaje de error previo si existe
+            if (errorMsg) {
+                errorMsg.remove();
+                errorMsg = null;
+            }
+
+            try {
+                console.log('Cargando DataViews desde:', `${API_BASE}/logs/dataviews`);
+                const response = await fetch(`${API_BASE}/logs/dataviews`, {
+                    method: 'GET',
+                    headers: { 
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Respuesta recibida:', response.status, response.statusText);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error en respuesta:', errorText);
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch (e) {
+                        errorData = { error: errorText || `Error ${response.status}: ${response.statusText}` };
+                    }
+                    throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Datos recibidos:', data);
+
+                if (data.success && data.data && Array.isArray(data.data)) {
+                    if (data.data.length === 0) {
+                        throw new Error('No hay DataViews disponibles');
+                    }
+                    
+                    select.innerHTML = '<option value="">Seleccione un DataView...</option>';
+                    data.data.forEach(view => {
+                        const option = document.createElement('option');
+                        option.value = view;
+                        option.textContent = view;
+                        select.appendChild(option);
+                    });
+                    select.disabled = false;
+                    console.log(`✅ ${data.data.length} DataViews cargados exitosamente`);
+                } else {
+                    console.error('Formato de respuesta inválido:', data);
+                    throw new Error('Formato de respuesta inválido del servidor');
+                }
+            } catch (error) {
+                console.error('Error loading DataViews:', error);
+                select.innerHTML = '<option value="">Error al cargar DataViews</option>';
+                select.disabled = true;
+                
+                // Mostrar mensaje de error
+                if (!errorMsg) {
+                    errorMsg = document.createElement('div');
+                    errorMsg.className = 'error-message';
+                    errorMsg.style.marginTop = '5px';
+                    errorMsg.style.color = '#d32f2f';
+                    errorMsg.style.fontSize = '12px';
+                    select.parentElement.appendChild(errorMsg);
+                }
+                errorMsg.textContent = `Error: ${error.message}`;
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        function handleDataViewChange() {
+            const select = document.getElementById('logsDataViewSelect');
+            const btn = document.getElementById('toggleLogsBtn');
+            btn.disabled = !select.value;
+
+            // Si cambiamos de view, detenemos el log actual
+            if (isLogsActive) {
+                toggleLogs();
+            }
+
+            document.getElementById('logsContainer').innerHTML =
+                '<div style="text-align: center; color: #666; margin-top: 50px;">Presione Iniciar para ver los logs en tiempo real</div>';
+        }
+
+        function handleTimeRangeChange() {
+            // Si los logs están activos, reiniciar con el nuevo rango
+            if (isLogsActive) {
+                const wasActive = isLogsActive;
+                toggleLogs(); // Detener
+                if (wasActive) {
+                    setTimeout(() => toggleLogs(), 100); // Reiniciar con nuevo rango
+                }
+            }
+        }
+
+        function toggleLogs() {
+            console.log('🔵 toggleLogs() llamado, estado actual:', isLogsActive);
+            const btn = document.getElementById('toggleLogsBtn');
+            const status = document.getElementById('logsStatus');
+            const select = document.getElementById('logsDataViewSelect');
+            
+            if (!btn || !select) {
+                console.error('❌ Elementos del modal no encontrados');
+                return;
+            }
+
+            if (isLogsActive) {
+                // Stop
+                console.log('⏹️ Deteniendo logs...');
+                clearInterval(logsInterval);
+                logsInterval = null;
+                isLogsActive = false;
+                lastLogTimestamp = null; // Reset tracking
+                btn.innerHTML = '<i class="fas fa-play"></i> Iniciar';
+                btn.classList.remove('btn-danger');
+                btn.style.background = '#00568E';
+                if (status) status.style.display = 'none';
+                select.disabled = false;
+                console.log('✅ Logs detenidos');
+            } else {
+                // Start
+                const dataView = select.value;
+                if (!dataView) {
+                    console.warn('⚠️ No hay DataView seleccionado');
+                    alert('Por favor, seleccione un DataView primero');
+                    return;
+                }
+                
+                console.log('▶️ Iniciando logs para DataView:', dataView);
+                isLogsActive = true;
+                lastLogTimestamp = null; // Reset para empezar desde cero
+                btn.innerHTML = '<i class="fas fa-stop"></i> Detener';
+                btn.style.background = '#dc3545';
+                if (status) status.style.display = 'block';
+                select.disabled = true;
+
+                const container = document.getElementById('logsContainer');
+                if (container) {
+                    container.innerHTML = ''; // Limpiar
+                }
+                fetchLogs(); // Primer fetch inmediato
+                logsInterval = setInterval(fetchLogs, 3000); // Poll cada 3s para tiempo real
+                console.log('✅ Logs iniciados, actualizando cada 3 segundos');
+            }
+        }
+
+        async function fetchLogs() {
+            if (!isLogsActive) return;
+
+            const dataView = document.getElementById('logsDataViewSelect').value;
+            const timeRange = document.getElementById('logsTimeRangeSelect').value;
+            if (!dataView) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/logs/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ dataView, limit: 50, timeRange: timeRange })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    renderLogs(data.data);
+                } else {
+                    console.error('Error en respuesta:', data);
+                }
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                const container = document.getElementById('logsContainer');
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = '#ff6b6b';
+                errorDiv.style.padding = '10px';
+                errorDiv.style.marginBottom = '10px';
+                errorDiv.style.border = '1px solid #ff6b6b';
+                errorDiv.style.borderRadius = '4px';
+                errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${error.message}`;
+                container.appendChild(errorDiv);
+            }
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('logsContainer');
+            
+            if (!logs || logs.length === 0) {
+                if (container.innerHTML === '') {
+                    container.innerHTML = '<div style="text-align: center; color: #666; margin-top: 50px;">No hay logs disponibles</div>';
+                }
+                return;
+            }
+
+            // Ordenar logs por timestamp (más antiguos primero, más recientes al final)
+            const sortedLogs = [...logs].sort((a, b) => {
+                return new Date(a.timestamp) - new Date(b.timestamp);
+            });
+
+            // Si es la primera carga, mostrar todos los logs
+            if (lastLogTimestamp === null) {
+                container.innerHTML = ''; // Limpiar mensaje inicial si existe
+                sortedLogs.forEach(log => {
+                    appendLogEntry(container, log);
+                });
+                // Guardar el último timestamp
+                if (sortedLogs.length > 0) {
+                    lastLogTimestamp = sortedLogs[sortedLogs.length - 1].timestamp;
+                }
+                // Auto-scroll al final
+                container.scrollTop = container.scrollHeight;
+                return;
+            }
+
+            // Para actualizaciones en tiempo real, solo agregar logs nuevos
+            let newLogsCount = 0;
+            const wasScrolledToBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
+            sortedLogs.forEach(log => {
+                const logTime = new Date(log.timestamp);
+                const lastTime = new Date(lastLogTimestamp);
+                
+                // Solo agregar logs más recientes que el último visto
+                if (logTime > lastTime) {
+                    appendLogEntry(container, log);
+                    newLogsCount++;
+                    // Actualizar último timestamp
+                    if (logTime > new Date(lastLogTimestamp)) {
+                        lastLogTimestamp = log.timestamp;
+                    }
+                }
+            });
+
+            // Auto-scroll solo si el usuario estaba al final
+            if (wasScrolledToBottom && newLogsCount > 0) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function appendLogEntry(container, log) {
+            const logTime = new Date(log.timestamp);
+            const timeStr = logTime.toLocaleTimeString('es-VE', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            });
+            
+            const message = log.message || '';
+            const lowerMessage = message.toLowerCase();
+            let color = '#d4d4d4'; // Color por defecto
+            
+            if (lowerMessage.includes('error') || lowerMessage.includes('exception') || lowerMessage.includes('failed')) {
+                color = '#ff6b6b';
+            } else if (lowerMessage.includes('warn') || lowerMessage.includes('warning')) {
+                color = '#fcc419';
+            } else if (lowerMessage.includes('info') || lowerMessage.includes('debug')) {
+                color = '#69db7c';
+            }
+
+            const logDiv = document.createElement('div');
+            logDiv.style.marginBottom = '3px';
+            logDiv.style.paddingBottom = '3px';
+            logDiv.style.borderBottom = '1px solid #333';
+            logDiv.style.fontSize = '13px';
+            logDiv.style.lineHeight = '1.6';
+            logDiv.style.wordBreak = 'break-word';
+            logDiv.innerHTML = `
+                <span style="color: #888; font-size: 11px; margin-right: 8px;">[${timeStr}]</span>
+                <span style="color: #4dabf7; font-weight: bold; margin-right: 8px;">${escapeHtml(log.container || 'system')}</span>
+                <span style="color: ${color};">${escapeHtml(message)}</span>
+            `;
+            
+            container.appendChild(logDiv);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+
+        // Verificar si hay token guardado al cargar
+        window.addEventListener('load', async function () {
+            const savedToken = localStorage.getItem('authToken');
+            if (savedToken) {
+                authToken = savedToken;
+                try {
+                    const response = await fetch(`${API_BASE}/auth/verify`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    if (response.ok) {
+                        sessionExpiryModalShown = false; // Resetear flag al cargar sesión existente
+                        showMainContent();
+                        loadHosts();
+                        loadHostsForSelects();
+                        startHostsAutoUpdate();
+                        startTokenExpiryMonitoring(); // Iniciar monitoreo de expiración
+                    } else {
+                        localStorage.removeItem('authToken');
+                        authToken = null;
+                    }
+                } catch (error) {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                }
+            }
+
+            setTimeout(function () {
+                const loader = document.getElementById('loader');
+                loader.classList.add('hidden');
+                setTimeout(() => loader.remove(), 800);
+            }, 1000);
+        });
+
+        // Manejar login
+        async function handleLogin(event) {
+            event.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('loginError');
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Iniciando sesión...';
+            errorDiv.style.display = 'none';
+
+            try {
+                // Obtener token de reCAPTCHA v3
+                let recaptchaToken = null;
+                try {
+                    recaptchaToken = await new Promise((resolve, reject) => {
+                        if (typeof grecaptcha === 'undefined') {
+                            reject(new Error('reCAPTCHA no está disponible'));
+                            return;
+                        }
+                        grecaptcha.ready(() => {
+                            grecaptcha.execute('6LcYhgssAAAAAFYB9PS3EBe5NQXYTZH9bK_Bp5uj', { action: 'login' })
+                                .then((token) => {
+                                    resolve(token);
+                                })
+                                .catch((error) => {
+                                    reject(error);
+                                });
+                        });
+                    });
+                } catch (recaptchaError) {
+                    console.error('Error obteniendo token de reCAPTCHA:', recaptchaError);
+                    // Continuar sin token si hay error (para desarrollo, pero en producción debería fallar)
+                    // errorDiv.textContent = 'Error de verificación de seguridad. Por favor recarga la página.';
+                    // errorDiv.style.display = 'block';
+                    // btn.disabled = false;
+                    // btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
+                    // return;
+                }
+
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        username, 
+                        password,
+                        recaptchaToken: recaptchaToken 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.data.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('authToken', authToken);
+                    sessionExpiryModalShown = false; // Resetear flag al iniciar nueva sesión
+                    showMainContent();
+                    loadHosts();
+                    loadHostsForSelects();
+                    startHostsAutoUpdate();
+                    startTokenExpiryMonitoring(); // Iniciar monitoreo de expiración
+                } else {
+                    errorDiv.textContent = data.error || 'Error al iniciar sesión';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error en login:', error);
+                errorDiv.textContent = 'Error de conexión. Por favor intenta nuevamente.';
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
+            }
+        }
+
+        // Manejar logout
+        function handleLogout() {
+            // Si se llama desde el modal de expiración, no pedir confirmación
+            const fromExpiryModal = arguments[0] === true;
+            
+            if (fromExpiryModal || confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                // Detener actualizaciones automáticas
+                if (hostsUpdateInterval) {
+                    clearInterval(hostsUpdateInterval);
+                    hostsUpdateInterval = null;
+                }
+                if (chartsUpdateInterval) {
+                    clearInterval(chartsUpdateInterval);
+                    chartsUpdateInterval = null;
+                }
+                if (tokenCheckInterval) {
+                    clearInterval(tokenCheckInterval);
+                    tokenCheckInterval = null;
+                }
+                // Cerrar modal de expiración si está abierto
+                closeSessionExpiryModal();
+                authToken = null;
+                localStorage.removeItem('authToken');
+                sessionExpiryModalShown = false;
+                document.getElementById('loginSection').style.display = 'flex';
+                document.getElementById('mainContent').classList.add('content-hidden');
+                document.getElementById('loginUsername').value = '';
+                document.getElementById('loginPassword').value = '';
+                // Destruir gráficas
+                Object.values(charts).forEach(chart => chart.destroy());
+                charts = {};
+            }
+        }
+
+        // Decodificar JWT sin verificar (solo para leer el payload)
+        function decodeJWT(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (error) {
+                console.error('Error decodificando JWT:', error);
+                return null;
+            }
+        }
+
+        // Obtener tiempo de expiración del token
+        function getTokenExpiry(token) {
+            if (!token) return null;
+            const decoded = decodeJWT(token);
+            if (!decoded || !decoded.exp) return null;
+            return decoded.exp * 1000; // Convertir a milisegundos
+        }
+
+        // Calcular tiempo restante en minutos
+        function getTimeRemaining(expiryTime) {
+            if (!expiryTime) return null;
+            const now = Date.now();
+            const remaining = expiryTime - now;
+            return remaining > 0 ? remaining : 0;
+        }
+
+        // Formatear tiempo restante como MM:SS
+        function formatTimeRemaining(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // Cerrar modal de expiración de sesión
+        function closeSessionExpiryModal() {
+            const modal = document.getElementById('modalSessionExpiry');
+            if (modal) {
+                modal.style.display = 'none';
+                sessionExpiryModalShown = false; // Resetear flag para permitir mostrar nuevamente si es necesario
+            }
+        }
+
+        // Mostrar modal de expiración de sesión
+        function showSessionExpiryModal(timeRemaining) {
+            if (sessionExpiryModalShown) return; // Evitar mostrar múltiples veces
+            
+            const modal = document.getElementById('modalSessionExpiry');
+            const timeElement = document.getElementById('sessionTimeRemaining');
+            
+            if (!modal || !timeElement) return;
+            
+            sessionExpiryModalShown = true;
+            modal.style.display = 'block';
+            
+            // Guardar referencia al intervalo para poder limpiarlo
+            let updateInterval = null;
+            
+            // Actualizar el tiempo cada segundo
+            updateInterval = setInterval(() => {
+                const expiryTime = getTokenExpiry(authToken);
+                if (!expiryTime) {
+                    if (updateInterval) clearInterval(updateInterval);
+                    return;
+                }
+                
+                const remaining = getTimeRemaining(expiryTime);
+                if (remaining <= 0) {
+                    if (updateInterval) clearInterval(updateInterval);
+                    timeElement.textContent = '00:00';
+                    // Esperar 1 segundo y cerrar sesión automáticamente
+                    setTimeout(() => {
+                        handleLogout(true);
+                    }, 1000);
+                } else {
+                    timeElement.textContent = formatTimeRemaining(remaining);
+                }
+            }, 1000);
+            
+            // Limpiar intervalo cuando se cierre el modal (usando evento personalizado)
+            const cleanup = () => {
+                if (updateInterval) {
+                    clearInterval(updateInterval);
+                    updateInterval = null;
+                }
+            };
+            
+            // Agregar listener al botón de cerrar
+            const closeBtn = modal.querySelector('.close');
+            if (closeBtn) {
+                const originalOnClick = closeBtn.onclick;
+                closeBtn.onclick = (e) => {
+                    cleanup();
+                    closeSessionExpiryModal();
+                    if (originalOnClick) originalOnClick(e);
+                };
+            }
+            
+            // También limpiar cuando se cierre con el botón "Cerrar"
+            const closeButton = modal.querySelector('button[onclick="closeSessionExpiryModal()"]');
+            if (closeButton) {
+                const originalCloseOnClick = closeButton.onclick;
+                closeButton.onclick = (e) => {
+                    cleanup();
+                    if (originalCloseOnClick) originalCloseOnClick(e);
+                };
+            }
+        }
+
+        // Verificar expiración del token
+        function checkTokenExpiry() {
+            if (!authToken) return;
+            
+            const expiryTime = getTokenExpiry(authToken);
+            if (!expiryTime) return;
+            
+            const timeRemaining = getTimeRemaining(expiryTime);
+            
+            // Si el token ya expiró, cerrar sesión inmediatamente
+            if (timeRemaining <= 0) {
+                console.warn('Token expirado, cerrando sesión...');
+                handleLogout(true);
+                return;
+            }
+            
+            // Mostrar alerta 2 minutos antes de expirar (120000 ms)
+            const twoMinutes = 2 * 60 * 1000;
+            if (timeRemaining <= twoMinutes && !sessionExpiryModalShown) {
+                console.warn('Token expirará en menos de 2 minutos');
+                showSessionExpiryModal(timeRemaining);
+            }
+        }
+
+        // Iniciar monitoreo de expiración de token
+        function startTokenExpiryMonitoring() {
+            // Limpiar intervalo anterior si existe
+            if (tokenCheckInterval) {
+                clearInterval(tokenCheckInterval);
+            }
+            
+            // Verificar inmediatamente
+            checkTokenExpiry();
+            
+            // Verificar cada 30 segundos
+            tokenCheckInterval = setInterval(() => {
+                checkTokenExpiry();
+            }, 30000); // 30 segundos
+        }
+
+        // Interceptar fetch para detectar errores 401/403
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const response = await originalFetch(...args);
+            
+            // Si la respuesta es 401 o 403, el token expiró o es inválido
+            if (response.status === 401 || response.status === 403) {
+                // Verificar si es un error de autenticación
+                try {
+                    const data = await response.clone().json();
+                    if (data.code === 'INVALID_TOKEN' || data.code === 'NO_TOKEN' || data.error?.includes('Token')) {
+                        console.warn('Token inválido o expirado detectado en respuesta del servidor');
+                        // Cerrar sesión automáticamente
+                        handleLogout(true);
+                    }
+                } catch (e) {
+                    // Si no se puede parsear, asumir que es un error de autenticación
+                    if (response.status === 401) {
+                        console.warn('Error 401 detectado, cerrando sesión...');
+                        handleLogout(true);
+                    }
+                }
+            }
+            
+            return response;
+        };
+
+        // Iniciar actualización automática de hosts
+        function startHostsAutoUpdate() {
+            if (hostsUpdateInterval) {
+                clearInterval(hostsUpdateInterval);
+            }
+            // Actualizar cada minuto
+            hostsUpdateInterval = setInterval(() => {
+                if (document.getElementById('hostsSection').classList.contains('active')) {
+                    loadHosts();
+                }
+            }, 60000);
+        }
+
+        // Mostrar contenido principal
+        function showMainContent() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('mainContent').classList.remove('content-hidden');
+        }
+
+        // Cambiar sección del menú
+        function showSection(sectionName) {
+            // Detener actualización de gráficas si se cambia de sección
+            if (chartsUpdateInterval) {
+                clearInterval(chartsUpdateInterval);
+                chartsUpdateInterval = null;
+            }
+            // Detener actualización de métricas si se cambia de sección
+            if (metricsUpdateInterval) {
+                clearInterval(metricsUpdateInterval);
+                metricsUpdateInterval = null;
+            }
+            // Detener actualización de Docker si se cambia de sección
+            if (dockerUpdateInterval) {
+                clearInterval(dockerUpdateInterval);
+                dockerUpdateInterval = null;
+            }
+
+            // Actualizar menú
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.closest('.menu-item').classList.add('active');
+            }
+
+            // Mostrar sección correspondiente
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(`${sectionName}Section`).classList.add('active');
+
+            // Cargar datos si es necesario
+            if (sectionName === 'hosts') {
+                loadHosts();
+            } else if (sectionName === 'metrics') {
+                loadHostMetrics();
+            } else if (sectionName === 'charts') {
+                loadCharts();
+            } else if (sectionName === 'docker') {
+                loadDockerData();
+                startDockerAutoUpdate();
+            }
+        }
+
+        // Cargar hosts con estado de ping
+        async function loadHosts() {
+            if (!authToken) return;
+
+            try {
+                // Cargar hosts y estado de ping en paralelo
+                const [hostsResponse, statusResponse] = await Promise.all([
+                    fetch(`${API_BASE}/hosts`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    }),
+                    fetch(`${API_BASE}/hosts/status/check`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    })
+                ]);
+
+                const hostsData = await hostsResponse.json();
+                const statusData = await statusResponse.json();
+
+                // Crear mapa de estados por host_id
+                const statusMap = {};
+                if (statusData.success && statusData.data && statusData.data.hosts) {
+                    statusData.data.hosts.forEach(status => {
+                        statusMap[status.host_id] = status.is_online;
+                    });
+                }
+
+                if (hostsData.hosts && hostsData.hosts.length > 0) {
+                    const grid = document.getElementById('hostsGrid');
+                    grid.innerHTML = hostsData.hosts.map(host => {
+                        // Usar el estado de ping si está disponible, sino usar last_seen como fallback
+                        const isOnline = statusMap[host.id] !== undefined
+                            ? statusMap[host.id]
+                            : (host.last_seen && (new Date() - new Date(host.last_seen)) <= 2 * 60 * 1000);
+
+                        return `
+                            <div class="host-card ${!isOnline ? 'offline' : ''}" onclick="viewHostDetail(${host.id})">
+                                <h3><i class="fas fa-server"></i> ${host.hostname}</h3>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">IP:</span>
+                                    <span class="host-stat-value">${host.ip}</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Rol:</span>
+                                    <span class="host-stat-value">${host.role}</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Entorno:</span>
+                                    <span class="host-stat-value">${host.environment}</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Estado:</span>
+                                    <span class="status-badge ${isOnline ? 'online' : 'offline'}">
+                                        ${isOnline ? 'Online' : 'Offline'}
+                                    </span>
+                                </div>
+                                ${host.last_seen ? `
+                                    <div class="host-stat">
+                                        <span class="host-stat-label">Ultima Actualización:</span>
+                                        <span class="host-stat-value" style="font-size: 12px;">${formatDate(host.last_seen)}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    document.getElementById('hostsGrid').innerHTML =
+                        '<div style="text-align: center; padding: 40px; color: #666; grid-column: 1 / -1;">No hay hosts disponibles</div>';
+                }
+            } catch (error) {
+                console.error('Error cargando hosts:', error);
+                document.getElementById('hostsGrid').innerHTML =
+                    '<div style="text-align: center; padding: 40px; color: #d32f2f; grid-column: 1 / -1;">Error cargando hosts</div>';
+            }
+        }
+
+        // Cargar hosts para los selectores
+        async function loadHostsForSelects() {
+            if (!authToken) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/hosts`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                const data = await response.json();
+
+                if (data.hosts) {
+                    const metricsSelect = document.getElementById('metricsHostSelect');
+                    const chartsSelect = document.getElementById('chartsHostSelect');
+                    const dockerSelect = document.getElementById('dockerHostSelect');
+
+                    [metricsSelect, chartsSelect, dockerSelect].forEach(select => {
+                        if (!select) return;
+                        // Limpiar opciones excepto la primera
+                        while (select.children.length > 1) {
+                            select.removeChild(select.lastChild);
+                        }
+
+                        // Agregar hosts
+                        data.hosts.forEach(host => {
+                            const option = document.createElement('option');
+                            option.value = host.id;
+                            option.textContent = `${host.hostname} (${host.role})`;
+                            select.appendChild(option);
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error cargando hosts para selectores:', error);
+            }
+        }
+
+        // Ver detalle de host
+        function viewHostDetail(hostId) {
+            showSection('metrics');
+            document.getElementById('metricsHostSelect').value = hostId;
+            loadHostMetrics();
+        }
+
+        // Función auxiliar para calcular promedio
+        function calculateAverage(values) {
+            if (!values || values.length === 0) return 0;
+            const sum = values.reduce((a, b) => a + b, 0);
+            return sum / values.length;
+        }
+
+        // Función auxiliar para obtener el último elemento de un array
+        function getLastElement(array) {
+            if (!array || array.length === 0) return null;
+            return array[array.length - 1];
+        }
+
+        // Función auxiliar para eliminar duplicados de discos por mount
+        function removeDuplicateDisks(disks) {
+            const seen = new Set();
+            return disks.filter(disk => {
+                const mount = disk.mount || disk.mount_point || 'N/A';
+                if (seen.has(mount)) {
+                    return false;
+                }
+                seen.add(mount);
+                return true;
+            });
+        }
+
+        // Cargar métricas de host
+        async function loadHostMetrics() {
+            const hostId = document.getElementById('metricsHostSelect').value;
+            const range = document.getElementById('metricsTimeRange').value;
+
+            // Detener actualización anterior si existe
+            if (metricsUpdateInterval) {
+                clearInterval(metricsUpdateInterval);
+                metricsUpdateInterval = null;
+            }
+
+            if (!hostId) {
+                document.getElementById('metricsContent').innerHTML =
+                    '<p style="text-align: center; color: #666; padding: 40px;">Seleccione un host para ver sus métricas</p>';
+                return;
+            }
+
+            if (!authToken) return;
+
+            // Solo mostrar "Cargando..." si no hay contenido previo o si cambió el rango
+            const currentContent = document.getElementById('metricsContent').innerHTML;
+            const hasContent = currentContent && !currentContent.includes('Seleccione un host');
+            if (!hasContent) {
+                document.getElementById('metricsContent').innerHTML =
+                    '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 32px;"></i><p>Cargando métricas...</p></div>';
+            }
+
+            try {
+                let data = {};
+                let hostname = '';
+
+                if (range === 'realtime') {
+                    // Para tiempo real, usar los endpoints individuales y tomar el ÚLTIMO dato
+                    const [cpuRes, memoryRes, networkRes, diskRes] = await Promise.all([
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/cpu?range=realtime`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/memory?range=realtime`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/network?range=realtime`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/disk?range=realtime`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }).catch(() => null) // Disco puede no estar disponible
+                    ]);
+
+                    // Verificar que las respuestas sean exitosas
+                    if (!cpuRes.ok) throw new Error(`Error CPU: ${cpuRes.status}`);
+                    if (!memoryRes.ok) throw new Error(`Error Memory: ${memoryRes.status}`);
+                    if (!networkRes.ok) throw new Error(`Error Network: ${networkRes.status}`);
+
+                    const cpuData = await cpuRes.json();
+                    const memoryData = await memoryRes.json();
+                    const networkData = await networkRes.json();
+                    let diskData = null;
+                    if (diskRes && diskRes.ok) {
+                        try {
+                            diskData = await diskRes.json();
+                        } catch (e) {
+                            console.warn('Error parseando datos de disco:', e);
+                            diskData = null;
+                        }
+                    }
+
+                    hostname = cpuData.hostname || '';
+
+                    // Obtener el ÚLTIMO elemento de cada array
+                    const lastCpu = getLastElement(cpuData.data || []);
+                    const lastMemory = getLastElement(memoryData.data || []);
+                    const lastNetwork = getLastElement(networkData.data || []);
+
+                    // Procesar discos: el formato es un objeto con mount points como claves
+                    const diskMap = new Map();
+                    if (diskData && diskData.data && typeof diskData.data === 'object' && !Array.isArray(diskData.data)) {
+                        // Iterar sobre cada mount point
+                        Object.keys(diskData.data).forEach(mount => {
+                            const diskArray = diskData.data[mount];
+                            if (Array.isArray(diskArray) && diskArray.length > 0) {
+                                // Tomar el último elemento del array para este mount point
+                                const lastDisk = getLastElement(diskArray);
+                                if (lastDisk && typeof lastDisk === 'object') {
+                                    diskMap.set(mount, lastDisk);
+                                }
+                            }
+                        });
+                    }
+
+                    data = {
+                        host: { hostname: hostname },
+                        cpu: {
+                            usage_percent: lastCpu ? parseFloat(lastCpu.usage_percent).toFixed(2) : '0.00'
+                        },
+                        memory: {
+                            usage_percent: lastMemory ? parseFloat(lastMemory.usage_percent).toFixed(2) : '0.00',
+                            used_mb: lastMemory ? Math.round(parseFloat(lastMemory.used_mb)) : 0,
+                            total_mb: lastMemory ? Math.round(parseFloat(lastMemory.total_mb)) : 0
+                        },
+                        network: {
+                            rx_mb_s: lastNetwork ? parseFloat(lastNetwork.rx_mb_s) : 0,
+                            tx_mb_s: lastNetwork ? parseFloat(lastNetwork.tx_mb_s) : 0
+                        },
+                        disk: Array.from(diskMap.entries()).map(([mount, disk]) => ({
+                            mount: mount,
+                            usage_percent: disk && typeof disk === 'object' && disk.usage_percent
+                                ? parseFloat(disk.usage_percent).toFixed(2)
+                                : '0.00'
+                        }))
+                    };
+                } else {
+                    // Para otros rangos, hacer llamadas paralelas y calcular promedios
+                    const [cpuRes, memoryRes, networkRes, diskRes] = await Promise.all([
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/cpu?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/memory?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/network?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/disk?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }).catch(() => null) // Disco puede no estar disponible
+                    ]);
+
+                    // Verificar que las respuestas sean exitosas
+                    if (!cpuRes.ok) throw new Error(`Error CPU: ${cpuRes.status}`);
+                    if (!memoryRes.ok) throw new Error(`Error Memory: ${memoryRes.status}`);
+                    if (!networkRes.ok) throw new Error(`Error Network: ${networkRes.status}`);
+
+                    const cpuData = await cpuRes.json();
+                    const memoryData = await memoryRes.json();
+                    const networkData = await networkRes.json();
+                    let diskData = null;
+                    if (diskRes && diskRes.ok) {
+                        try {
+                            diskData = await diskRes.json();
+                        } catch (e) {
+                            console.warn('Error parseando datos de disco:', e);
+                            diskData = null;
+                        }
+                    }
+
+                    hostname = cpuData.hostname || '';
+
+                    // Calcular promedios
+                    const cpuValues = cpuData.data ? cpuData.data.map(d => parseFloat(d.usage_percent)) : [];
+                    const memoryValues = memoryData.data ? memoryData.data.map(d => parseFloat(d.usage_percent)) : [];
+                    const memoryUsedValues = memoryData.data ? memoryData.data.map(d => parseFloat(d.used_mb)) : [];
+                    const memoryTotalValues = memoryData.data ? memoryData.data.map(d => parseFloat(d.total_mb)) : [];
+                    const rxValues = networkData.data ? networkData.data.map(d => parseFloat(d.rx_mb_s)) : [];
+                    const txValues = networkData.data ? networkData.data.map(d => parseFloat(d.tx_mb_s)) : [];
+
+                    // Para discos, el formato es un objeto con mount points como claves
+                    // Calcular promedio de cada array dentro de cada mount point
+                    const diskMap = new Map();
+                    if (diskData && diskData.data && typeof diskData.data === 'object' && !Array.isArray(diskData.data)) {
+                        // Iterar sobre cada mount point
+                        Object.keys(diskData.data).forEach(mount => {
+                            const diskArray = diskData.data[mount];
+                            if (Array.isArray(diskArray) && diskArray.length > 0) {
+                                // Calcular promedio de usage_percent para este mount point
+                                const usageValues = diskArray
+                                    .filter(disk => disk && typeof disk === 'object' && disk.usage_percent !== undefined)
+                                    .map(disk => parseFloat(disk.usage_percent || 0));
+
+                                if (usageValues.length > 0) {
+                                    diskMap.set(mount, calculateAverage(usageValues));
+                                }
+                            }
+                        });
+                    }
+
+                    data = {
+                        host: { hostname: hostname },
+                        cpu: {
+                            usage_percent: cpuValues.length > 0 ? calculateAverage(cpuValues).toFixed(2) : '0.00'
+                        },
+                        memory: {
+                            usage_percent: memoryValues.length > 0 ? calculateAverage(memoryValues).toFixed(2) : '0.00',
+                            used_mb: memoryUsedValues.length > 0 ? Math.round(calculateAverage(memoryUsedValues)) : 0,
+                            total_mb: memoryTotalValues.length > 0 ? Math.round(calculateAverage(memoryTotalValues)) : 0
+                        },
+                        network: {
+                            rx_mb_s: rxValues.length > 0 ? calculateAverage(rxValues) : 0,
+                            tx_mb_s: txValues.length > 0 ? calculateAverage(txValues) : 0
+                        },
+                        disk: Array.from(diskMap.entries()).map(([mount, avgUsage]) => ({
+                            mount: mount,
+                            usage_percent: typeof avgUsage === 'number' ? avgUsage.toFixed(2) : '0.00'
+                        }))
+                    };
+                }
+
+                // Renderizar métricas
+                if (data.host && data.host.hostname) {
+                    let html = `
+                        <div class="section">
+                            <h3 style="color: #00568E; margin-bottom: 20px;">
+                                <i class="fas fa-server"></i> ${data.host.hostname}
+                                ${range === 'realtime' ? '<span style="font-size: 14px; color: #666; margin-left: 10px;">(Actualizando automáticamente...)</span>' : ''}
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                    `;
+
+                    if (data.cpu) {
+                        html += `
+                            <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #00568E;">
+                                <h4 style="color: #00568E; margin-bottom: 10px;"><i class="fas fa-microchip"></i> CPU</h4>
+                                <div style="font-size: 32px; font-weight: bold; color: #333;">${data.cpu.usage_percent}%</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                    ${range === 'realtime' ? 'Último dato recibido' : 'Promedio del rango seleccionado'}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (data.memory) {
+                        html += `
+                            <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #28a745;">
+                                <h4 style="color: #00568E; margin-bottom: 10px;"><i class="fas fa-memory"></i> Memoria</h4>
+                                <div style="font-size: 24px; font-weight: bold; color: #333;">${data.memory.usage_percent}%</div>
+                                <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                                    ${data.memory.used_mb} MB / ${data.memory.total_mb} MB
+                                </div>
+                                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                    ${range === 'realtime' ? 'Último dato recibido' : 'Promedio del rango seleccionado'}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (data.network) {
+                        html += `
+                            <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #ffc107;">
+                                <h4 style="color: #00568E; margin-bottom: 10px;"><i class="fas fa-network-wired"></i> Red</h4>
+                                <div style="font-size: 14px; margin-bottom: 5px;">
+                                    <strong>Descarga:</strong> ${data.network.rx_mb_s.toFixed(4)} MB/s
+                                </div>
+                                <div style="font-size: 14px; margin-bottom: 5px;">
+                                    <strong>Subida:</strong> ${data.network.tx_mb_s.toFixed(4)} MB/s
+                                </div>
+                                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                    ${range === 'realtime' ? 'Último dato recibido' : 'Promedio del rango seleccionado'}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (data.disk && data.disk.length > 0) {
+                        html += `
+                            <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border-left: 4px solid #dc3545; grid-column: 1 / -1;">
+                                <h4 style="color: #00568E; margin-bottom: 15px;"><i class="fas fa-hdd"></i> Discos</h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                    ${data.disk.map(disk => `
+                                        <div style="padding: 15px; background: white; border-radius: 8px;">
+                                            <div style="font-weight: bold; margin-bottom: 5px;">${disk.mount}</div>
+                                            <div style="font-size: 20px; font-weight: bold; color: #333;">${disk.usage_percent}%</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('metricsContent').innerHTML = html;
+                } else {
+                    document.getElementById('metricsContent').innerHTML =
+                        '<p style="text-align: center; color: #666; padding: 40px;">No hay métricas disponibles para este host</p>';
+                }
+
+                // Si es tiempo real, iniciar actualización automática cada minuto
+                if (range === 'realtime') {
+                    if (metricsUpdateInterval) {
+                        clearInterval(metricsUpdateInterval);
+                    }
+                    metricsUpdateInterval = setInterval(() => {
+                        console.log('🔄 Actualización automática de métricas en tiempo real...', new Date().toLocaleTimeString());
+                        loadHostMetrics();
+                    }, 60000); // Cada minuto (60 segundos)
+                    console.log('✅ Intervalo de actualización automática de métricas configurado (cada 60 segundos)');
+                }
+            } catch (error) {
+                console.error('Error cargando métricas:', error);
+                document.getElementById('metricsContent').innerHTML =
+                    '<p style="text-align: center; color: #d32f2f; padding: 40px;">Error cargando métricas</p>';
+            }
+        }
+
+        // Cargar gráficas
+        async function loadCharts() {
+            const hostId = document.getElementById('chartsHostSelect').value;
+            const range = document.getElementById('chartsTimeRange').value;
+
+            if (!hostId) {
+                // Detener actualización automática si no hay host seleccionado
+                if (chartsUpdateInterval) {
+                    clearInterval(chartsUpdateInterval);
+                    chartsUpdateInterval = null;
+                }
+                document.getElementById('chartsContent').innerHTML =
+                    '<p style="text-align: center; color: #666; padding: 40px; grid-column: 1 / -1;">Seleccione un host para ver las gráficas</p>';
+                return;
+            }
+
+            if (!authToken) return;
+
+            // Detener actualización anterior si existe
+            if (chartsUpdateInterval) {
+                clearInterval(chartsUpdateInterval);
+                chartsUpdateInterval = null;
+            }
+
+            // Verificar si las gráficas ya existen ANTES de reemplazar el HTML (solo para tiempo real)
+            const chartsExist = range === 'realtime' &&
+                charts.cpu && charts.cpu.canvas &&
+                charts.memory && charts.memory.canvas &&
+                charts.network && charts.network.canvas;
+
+            // Si no es tiempo real, destruir gráficas para recrearlas
+            if (range !== 'realtime') {
+                Object.values(charts).forEach(chart => {
+                    if (chart && typeof chart.destroy === 'function') {
+                        chart.destroy();
+                    }
+                });
+                charts = {};
+            }
+
+            // Solo mostrar "Cargando..." si las gráficas no existen
+            if (!chartsExist) {
+                document.getElementById('chartsContent').innerHTML =
+                    '<div style="text-align: center; padding: 40px; grid-column: 1 / -1;"><i class="fas fa-spinner fa-spin" style="font-size: 32px;"></i><p>Cargando gráficas...</p></div>';
+            }
+
+            try {
+                // Cargar métricas según el rango
+                let data = {};
+
+                if (range === 'realtime') {
+                    // Para tiempo real, usar el endpoint específico
+                    const response = await fetch(`${API_BASE}/hosts/${hostId}/metrics/realtime?metric=all`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+
+                    data = await response.json();
+                } else {
+                    // Para otros rangos, hacer llamadas paralelas a los endpoints específicos
+                    const [cpuRes, memoryRes, networkRes] = await Promise.all([
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/cpu?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/memory?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        }),
+                        fetch(`${API_BASE}/hosts/${hostId}/metrics/network?range=${range}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        })
+                    ]);
+
+                    const cpuData = await cpuRes.json();
+                    const memoryData = await memoryRes.json();
+                    const networkData = await networkRes.json();
+
+                    // Transformar los datos al formato esperado
+                    data = {
+                        host_id: cpuData.host_id || hostId,
+                        hostname: cpuData.hostname || '',
+                        cpu: cpuData.data || [],
+                        memory: memoryData.data ? memoryData.data.map(item => ({
+                            timestamp: item.timestamp,
+                            total_mb: item.total_mb,
+                            used_mb: item.used_mb,
+                            free_mb: item.free_mb,
+                            usage_percent: item.usage_percent
+                        })) : [],
+                        network: networkData.data ? networkData.data.map(item => ({
+                            timestamp: item.timestamp,
+                            interface_name: item.interface_name,
+                            rx_mb_s: item.rx_mb_s,
+                            tx_mb_s: item.tx_mb_s
+                        })) : []
+                    };
+                }
+
+                console.log('Datos recibidos para gráficas:', data);
+
+                if (chartsExist) {
+                    // Si las gráficas ya existen, solo actualizarlas sin reinsertar HTML
+                    console.log('Gráficas existentes detectadas, actualizando datos...');
+                    if (data.cpu && data.cpu.length > 0) {
+                        updateCPUChart(data.cpu);
+                    }
+                    if (data.memory && data.memory.length > 0) {
+                        updateMemoryChart(data.memory);
+                    }
+                    if (data.network && data.network.length > 0) {
+                        updateNetworkChart(data.network);
+                    }
+
+                    // Asegurar que el intervalo esté configurado para actualizaciones automáticas
+                    if (range === 'realtime') {
+                        if (chartsUpdateInterval) {
+                            clearInterval(chartsUpdateInterval);
+                        }
+                        chartsUpdateInterval = setInterval(() => {
+                            console.log('🔄 Actualización automática de gráficas en tiempo real...', new Date().toLocaleTimeString());
+                            loadCharts();
+                        }, 30000); // Cada 30 segundos para actualizaciones más frecuentes
+                        console.log('✅ Intervalo de actualización automática configurado (cada 30 segundos)');
+                    }
+
+                    return; // Salir temprano, no necesitamos crear HTML ni gráficas nuevas
+                }
+
+                // Si las gráficas no existen, crear el HTML y las gráficas
+                if (data.cpu || data.memory || data.network) {
+                    let html = '';
+
+                    // Gráfica de CPU
+                    if (data.cpu && data.cpu.length > 0) {
+                        html += `
+                            <div class="chart-card">
+                                <h3><i class="fas fa-microchip"></i> CPU Usage</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="cpuChart"></canvas>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // Gráfica de Memoria
+                    if (data.memory && data.memory.length > 0) {
+                        html += `
+                            <div class="chart-card">
+                                <h3><i class="fas fa-memory"></i> Memory Usage</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="memoryChart"></canvas>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // Gráfica de Red
+                    if (data.network && data.network.length > 0) {
+                        html += `
+                            <div class="chart-card">
+                                <h3><i class="fas fa-network-wired"></i> Network Traffic</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="networkChart"></canvas>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (!html) {
+                        document.getElementById('chartsContent').innerHTML =
+                            '<p style="text-align: center; color: #666; padding: 40px; grid-column: 1 / -1;">No hay datos disponibles para las gráficas</p>';
+                        return;
+                    }
+
+                    document.getElementById('chartsContent').innerHTML = html;
+                    console.log('HTML insertado, esperando para crear gráficas...');
+
+                    // Esperar un momento para que el DOM se actualice antes de crear gráficas
+                    setTimeout(() => {
+                        try {
+                            console.log('Intentando crear/actualizar gráficas...');
+                            console.log('Chart.js disponible:', typeof Chart !== 'undefined');
+
+                            // Verificar que los canvas existan
+                            const cpuCanvas = document.getElementById('cpuChart');
+                            const memoryCanvas = document.getElementById('memoryChart');
+                            const networkCanvas = document.getElementById('networkChart');
+
+                            console.log('Canvas encontrados:', {
+                                cpu: !!cpuCanvas,
+                                memory: !!memoryCanvas,
+                                network: !!networkCanvas
+                            });
+
+                            // Crear o actualizar gráficas
+                            // En tiempo real, intentar actualizar si existen y están completamente inicializadas, sino crear
+                            // En otros rangos, siempre crear nuevas
+                            if (data.cpu && data.cpu.length > 0) {
+                                const cpuChartExists = range === 'realtime' &&
+                                    charts.cpu &&
+                                    charts.cpu.data &&
+                                    charts.cpu.data.datasets &&
+                                    charts.cpu.data.datasets.length > 0 &&
+                                    charts.cpu.canvas;
+
+                                if (cpuChartExists) {
+                                    console.log('Actualizando gráfica CPU (realtime)');
+                                    updateCPUChart(data.cpu);
+                                } else {
+                                    console.log('Creando gráfica CPU con', data.cpu.length, 'puntos');
+                                    createCPUChart(data.cpu);
+                                }
+                            }
+                            if (data.memory && data.memory.length > 0) {
+                                const memoryChartExists = range === 'realtime' &&
+                                    charts.memory &&
+                                    charts.memory.data &&
+                                    charts.memory.data.datasets &&
+                                    charts.memory.data.datasets.length > 0 &&
+                                    charts.memory.canvas;
+
+                                if (memoryChartExists) {
+                                    console.log('Actualizando gráfica Memory (realtime)');
+                                    updateMemoryChart(data.memory);
+                                } else {
+                                    console.log('Creando gráfica Memory con', data.memory.length, 'puntos');
+                                    createMemoryChart(data.memory);
+                                }
+                            }
+                            if (data.network && data.network.length > 0) {
+                                const networkChartExists = range === 'realtime' &&
+                                    charts.network &&
+                                    charts.network.data &&
+                                    charts.network.data.datasets &&
+                                    charts.network.data.datasets.length >= 2 &&
+                                    charts.network.canvas;
+
+                                if (networkChartExists) {
+                                    console.log('Actualizando gráfica Network (realtime)');
+                                    updateNetworkChart(data.network);
+                                } else {
+                                    console.log('Creando gráfica Network con', data.network.length, 'puntos');
+                                    createNetworkChart(data.network);
+                                }
+                            }
+
+                            // Si es tiempo real, iniciar actualización automática cada 30 segundos
+                            if (range === 'realtime') {
+                                if (chartsUpdateInterval) {
+                                    clearInterval(chartsUpdateInterval);
+                                }
+                                chartsUpdateInterval = setInterval(() => {
+                                    console.log('🔄 Actualización automática de gráficas en tiempo real...', new Date().toLocaleTimeString());
+                                    loadCharts();
+                                }, 30000); // Cada 30 segundos para actualizaciones más frecuentes
+                                console.log('✅ Intervalo de actualización automática configurado (cada 30 segundos)');
+                            }
+                        } catch (chartError) {
+                            console.error('Error creando/actualizando gráficas:', chartError);
+                            console.error('Stack:', chartError.stack);
+                        }
+                    }, 800);
+                } else {
+                    document.getElementById('chartsContent').innerHTML =
+                        '<p style="text-align: center; color: #666; padding: 40px; grid-column: 1 / -1;">No hay datos disponibles para las gráficas</p>';
+                }
+            } catch (error) {
+                console.error('Error cargando gráficas:', error);
+                document.getElementById('chartsContent').innerHTML =
+                    '<p style="text-align: center; color: #d32f2f; padding: 40px; grid-column: 1 / -1;">Error cargando gráficas</p>';
+            }
+        }
+
+        // Crear gráfica de CPU
+        function createCPUChart(cpuData) {
+            try {
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js no está cargado');
+                    return;
+                }
+
+                const canvas = document.getElementById('cpuChart');
+                if (!canvas) {
+                    console.error('Canvas cpuChart no encontrado');
+                    return;
+                }
+
+                // Destruir gráfica existente si hay una
+                if (charts.cpu) {
+                    try {
+                        charts.cpu.destroy();
+                    } catch (e) {
+                        console.warn('Error destruyendo gráfica CPU:', e);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('No se pudo obtener el contexto 2d del canvas');
+                    return;
+                }
+
+                // Verificar que el canvas tenga tamaño
+                const chartWrapper = canvas.closest('.chart-wrapper');
+                if (chartWrapper) {
+                    const rect = chartWrapper.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) {
+                        console.warn('Canvas wrapper tiene tamaño 0, esperando...');
+                        setTimeout(() => createCPUChart(cpuData), 100);
+                        return;
+                    }
+                    // Establecer tamaño explícito del canvas
+                    canvas.width = rect.width;
+                    canvas.height = rect.height || 300;
+                }
+
+                console.log('Creando gráfica CPU con', cpuData.length, 'puntos de datos');
+                console.log('Canvas size:', canvas.width, 'x', canvas.height);
+
+                // Preparar datos
+                const labels = cpuData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const values = cpuData.map(d => parseFloat(d.usage_percent));
+
+                console.log('Labels:', labels.slice(0, 3), '...', labels.slice(-3));
+                console.log('Values:', values.slice(0, 3), '...', values.slice(-3));
+
+                charts.cpu = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'CPU Usage %',
+                            data: values,
+                            borderColor: '#00568E',
+                            backgroundColor: 'rgba(0, 86, 142, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 0
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Porcentaje (%)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Tiempo'
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log('✓ Gráfica CPU creada exitosamente');
+            } catch (error) {
+                console.error('Error creando gráfica CPU:', error);
+            }
+        }
+
+        // Crear gráfica de Memoria
+        function createMemoryChart(memoryData) {
+            try {
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js no está cargado');
+                    return;
+                }
+
+                const canvas = document.getElementById('memoryChart');
+                if (!canvas) {
+                    console.error('Canvas memoryChart no encontrado');
+                    return;
+                }
+
+                // Destruir gráfica existente si hay una
+                if (charts.memory) {
+                    try {
+                        charts.memory.destroy();
+                    } catch (e) {
+                        console.warn('Error destruyendo gráfica Memory:', e);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('No se pudo obtener el contexto 2d del canvas');
+                    return;
+                }
+
+                // Verificar que el canvas tenga tamaño
+                const chartWrapper = canvas.closest('.chart-wrapper');
+                if (chartWrapper) {
+                    const rect = chartWrapper.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) {
+                        console.warn('Canvas wrapper tiene tamaño 0, esperando...');
+                        setTimeout(() => createMemoryChart(memoryData), 100);
+                        return;
+                    }
+                    // Establecer tamaño explícito del canvas
+                    canvas.width = rect.width;
+                    canvas.height = rect.height || 300;
+                }
+
+                console.log('Creando gráfica Memory con', memoryData.length, 'puntos de datos');
+                console.log('Canvas size:', canvas.width, 'x', canvas.height);
+
+                // Preparar datos
+                const labels = memoryData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const values = memoryData.map(d => parseFloat(d.usage_percent));
+
+                charts.memory = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Memory Usage %',
+                            data: values,
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 0
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Porcentaje (%)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Tiempo'
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log('✓ Gráfica Memory creada exitosamente');
+            } catch (error) {
+                console.error('Error creando gráfica Memory:', error);
+            }
+        }
+
+        // Crear gráfica de Red
+        function createNetworkChart(networkData) {
+            try {
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js no está cargado');
+                    return;
+                }
+
+                const canvas = document.getElementById('networkChart');
+                if (!canvas) {
+                    console.error('Canvas networkChart no encontrado');
+                    return;
+                }
+
+                // Destruir gráfica existente si hay una
+                if (charts.network) {
+                    try {
+                        charts.network.destroy();
+                    } catch (e) {
+                        console.warn('Error destruyendo gráfica Network:', e);
+                    }
+                }
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error('No se pudo obtener el contexto 2d del canvas');
+                    return;
+                }
+
+                // Verificar que el canvas tenga tamaño
+                const chartWrapper = canvas.closest('.chart-wrapper');
+                if (chartWrapper) {
+                    const rect = chartWrapper.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) {
+                        console.warn('Canvas wrapper tiene tamaño 0, esperando...');
+                        setTimeout(() => createNetworkChart(networkData), 100);
+                        return;
+                    }
+                    // Establecer tamaño explícito del canvas
+                    canvas.width = rect.width;
+                    canvas.height = rect.height || 300;
+                }
+
+                console.log('Creando gráfica Network con', networkData.length, 'puntos de datos');
+                console.log('Canvas size:', canvas.width, 'x', canvas.height);
+
+                // Preparar datos
+                const labels = networkData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const rxValues = networkData.map(d => parseFloat(d.rx_mb_s));
+                const txValues = networkData.map(d => parseFloat(d.tx_mb_s));
+
+                charts.network = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Descarga (MB/s)',
+                                data: rxValues,
+                                borderColor: '#ffc107',
+                                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: 'Subida (MB/s)',
+                                data: txValues,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 0
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'MB/s'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Tiempo'
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log('✓ Gráfica Network creada exitosamente');
+            } catch (error) {
+                console.error('Error creando gráfica Network:', error);
+            }
+        }
+
+        // Actualizar gráfica de CPU
+        function updateCPUChart(cpuData) {
+            if (charts.cpu && charts.cpu.data && charts.cpu.data.datasets && charts.cpu.data.datasets[0]) {
+                // Formatear labels igual que en la creación
+                const labels = cpuData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const values = cpuData.map(d => parseFloat(d.usage_percent));
+
+                charts.cpu.data.labels = labels;
+                charts.cpu.data.datasets[0].data = values;
+                charts.cpu.update('none'); // 'none' para animación suave
+                console.log('✓ Gráfica CPU actualizada');
+            } else {
+                console.log('Gráfica CPU no existe, creándola...');
+                createCPUChart(cpuData);
+            }
+        }
+
+        // Actualizar gráfica de Memoria
+        function updateMemoryChart(memoryData) {
+            if (charts.memory && charts.memory.data && charts.memory.data.datasets && charts.memory.data.datasets[0]) {
+                // Formatear labels igual que en la creación
+                const labels = memoryData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const values = memoryData.map(d => parseFloat(d.usage_percent));
+
+                charts.memory.data.labels = labels;
+                charts.memory.data.datasets[0].data = values;
+                charts.memory.update('none');
+                console.log('✓ Gráfica Memory actualizada');
+            } else {
+                console.log('Gráfica Memory no existe, creándola...');
+                createMemoryChart(memoryData);
+            }
+        }
+
+        // Actualizar gráfica de Red
+        function updateNetworkChart(networkData) {
+            if (charts.network && charts.network.data && charts.network.data.datasets && charts.network.data.datasets.length >= 2) {
+                // Formatear labels igual que en la creación
+                const labels = networkData.map(d => {
+                    const date = new Date(d.timestamp);
+                    return date.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+                const rxValues = networkData.map(d => parseFloat(d.rx_mb_s));
+                const txValues = networkData.map(d => parseFloat(d.tx_mb_s));
+
+                charts.network.data.labels = labels;
+                charts.network.data.datasets[0].data = rxValues;
+                charts.network.data.datasets[1].data = txValues;
+                charts.network.update('none');
+                console.log('✓ Gráfica Network actualizada');
+            } else {
+                console.log('Gráfica Network no existe, creándola...');
+                createNetworkChart(networkData);
+            }
+        }
+
+        // Cargar datos de Docker según el host seleccionado
+        function loadDockerData() {
+            const hostId = document.getElementById('dockerHostSelect').value;
+            const type = document.getElementById('dockerTypeSelect').value;
+
+            if (!hostId) {
+                document.getElementById('dockerContent').innerHTML =
+                    '<p style="text-align: center; color: #666; padding: 40px;">Seleccione un host para ver los servicios y contenedores</p>';
+                return;
+            }
+
+            if (type === 'services') {
+                loadDockerServices(hostId);
+            } else {
+                loadDockerContainers(hostId);
+            }
+        }
+
+        // Cargar servicios Docker
+        async function loadDockerServices(hostId) {
+            if (!authToken) return;
+            if (!hostId) {
+                document.getElementById('dockerServicesGrid').innerHTML =
+                    '<div style="text-align: center; padding: 40px; color: #666; grid-column: 1 / -1;">Seleccione un host para ver los servicios</div>';
+                return;
+            }
+
+            try {
+                document.getElementById('dockerContent').innerHTML =
+                    '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i><p>Cargando servicios...</p></div>';
+
+                const response = await fetch(`${API_BASE}/docker/services/latest`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const allServices = result.data || [];
+
+                // Filtrar servicios por host_id
+                const services = allServices.filter(service => service.host_id == hostId);
+
+                if (services.length === 0) {
+                    document.getElementById('dockerContent').innerHTML =
+                        '<p style="text-align: center; color: #666; padding: 40px;">No hay servicios Docker disponibles para este host</p>';
+                    return;
+                }
+
+                const html = services.map(service => {
+                    const replicasMatch = service.replicas ? service.replicas.match(/(\d+)\/(\d+)/) : null;
+                    let replicaClass = 'incomplete';
+                    let isReplicaOk = false;
+                    if (replicasMatch) {
+                        const current = parseInt(replicasMatch[1]);
+                        const total = parseInt(replicasMatch[2]);
+                        if (current === total && total > 0) {
+                            replicaClass = 'complete';
+                            isReplicaOk = true;
+                        } else if (current > 0) {
+                            replicaClass = 'partial';
+                        }
+                    }
+
+                    return `
+                        <div class="host-card">
+                            <h3><i class="fas fa-layer-group"></i> ${service.name}</h3>
+                            <div style="display: flex; flex-direction: row; gap: 15px; flex-wrap: nowrap; overflow-x: auto;">
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Host</span>
+                                    <span class="host-stat-value">${service.hostname || `Host ${service.host_id}`}</span>
+                                </div>
+                                ${service.host_ip ? `
+                                <div class="host-stat">
+                                    <span class="host-stat-label">IP</span>
+                                    <span class="host-stat-value">${service.host_ip}</span>
+                                </div>
+                                ` : ''}
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Modo</span>
+                                    <span class="host-stat-value">${service.mode || 'N/A'}</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Entorno</span>
+                                    <span class="host-stat-value">prod</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Réplicas</span>
+                                    <span class="replica-badge ${replicaClass}">${service.replicas || 'N/A'}</span>
+                                </div>
+                                ${service.image ? `
+                                <div class="host-stat" style="min-width: 250px;">
+                                    <span class="host-stat-label">Imagen</span>
+                                    <span class="host-stat-value image-text" style="font-size: 12px;" title="${service.image}">${service.image}</span>
+                                </div>
+                                ` : ''}
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Última Actualización</span>
+                                    <span class="host-stat-value" style="font-size: 12px;">${formatDate(service.collected_at)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('dockerContent').innerHTML = `<div class="hosts-grid">${html}</div>`;
+            } catch (error) {
+                console.error('Error cargando servicios Docker:', error);
+                document.getElementById('dockerContent').innerHTML =
+                    '<p style="text-align: center; color: #d32f2f; padding: 40px;">Error cargando servicios Docker</p>';
+            }
+        }
+
+        // Cargar contenedores Docker
+        async function loadDockerContainers(hostId) {
+            if (!authToken) return;
+            if (!hostId) {
+                document.getElementById('dockerContainersGrid').innerHTML =
+                    '<div style="text-align: center; padding: 40px; color: #666; grid-column: 1 / -1;">Seleccione un host para ver los contenedores</div>';
+                return;
+            }
+
+            try {
+                document.getElementById('dockerContent').innerHTML =
+                    '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 10px;"></i><p>Cargando contenedores...</p></div>';
+
+                const response = await fetch(`${API_BASE}/docker/containers/latest`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const allContainers = result.data || [];
+
+                // Filtrar contenedores por host_id
+                const containers = allContainers.filter(container => container.host_id == hostId);
+
+                if (containers.length === 0) {
+                    document.getElementById('dockerContent').innerHTML =
+                        '<p style="text-align: center; color: #666; padding: 40px;">No hay contenedores Docker disponibles para este host</p>';
+                    return;
+                }
+
+                const html = containers.map(container => {
+                    const state = (container.state || 'unknown').toLowerCase();
+                    const isRunning = state === 'running';
+                    const cardClass = isRunning ? '' : 'offline';
+
+                    return `
+                        <div class="host-card ${cardClass}">
+                            <h3><i class="fas fa-cube"></i> ${container.name}</h3>
+                            <div style="display: flex; flex-direction: row; gap: 15px; flex-wrap: nowrap; overflow-x: auto;">
+                                ${container.hostname ? `
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Host</span>
+                                    <span class="host-stat-value">${container.hostname}</span>
+                                </div>
+                                ` : ''}
+                                ${container.host_ip ? `
+                                <div class="host-stat">
+                                    <span class="host-stat-label">IP</span>
+                                    <span class="host-stat-value">${container.host_ip}</span>
+                                </div>
+                                ` : ''}
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Estado</span>
+                                    <span class="status-badge ${isRunning ? 'online' : 'offline'}">
+                                        ${container.state || 'unknown'}
+                                    </span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Status</span>
+                                    <span class="host-stat-value" style="font-size: 14px;">${container.status || 'N/A'}</span>
+                                </div>
+                                <div class="host-stat" style="min-width: 250px;">
+                                    <span class="host-stat-label">Imagen</span>
+                                    <span class="host-stat-value image-text" style="font-size: 12px;" title="${container.image}">${container.image}</span>
+                                </div>
+                                <div class="host-stat">
+                                    <span class="host-stat-label">Última Actualización</span>
+                                    <span class="host-stat-value" style="font-size: 12px;">${formatDate(container.collected_at)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('dockerContent').innerHTML = `<div class="hosts-grid">${html}</div>`;
+            } catch (error) {
+                console.error('Error cargando contenedores Docker:', error);
+                document.getElementById('dockerContent').innerHTML =
+                    '<p style="text-align: center; color: #d32f2f; padding: 40px;">Error cargando contenedores Docker</p>';
+            }
+        }
+
+        // Iniciar actualización automática de Docker
+        function startDockerAutoUpdate() {
+            if (dockerUpdateInterval) {
+                clearInterval(dockerUpdateInterval);
+            }
+            dockerUpdateInterval = setInterval(() => {
+                loadDockerData();
+            }, 60000); // Cada minuto
+        }
+
+        // Formatear fecha
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleString('es-VE', {
+                timeZone: 'America/Caracas',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Abrir modal de cambio de contraseña
+        function openChangePasswordModal() {
+            const modal = document.getElementById('modalChangePassword');
+            if (modal) {
+                modal.style.display = 'block';
+                document.getElementById('changePasswordForm').reset();
+                document.getElementById('changePasswordError').style.display = 'none';
+                document.getElementById('changePasswordSuccess').style.display = 'none';
+            }
+        }
+
+        // Manejar cambio de contraseña
+        async function handleChangePassword(event) {
+            event.preventDefault();
+
+            if (!authToken) {
+                alert('Error: No hay sesión activa');
+                return;
+            }
+
+            const btn = document.getElementById('changePasswordBtn');
+            const errorDiv = document.getElementById('changePasswordError');
+            const successDiv = document.getElementById('changePasswordSuccess');
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                errorDiv.textContent = 'Las contraseñas no coinciden';
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+                return;
+            }
+
+            if (newPassword.length < 8) {
+                errorDiv.textContent = 'La nueva contraseña debe tener al menos 8 caracteres';
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cambiando contraseña...';
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/change-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        currentPassword,
+                        newPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    successDiv.style.display = 'block';
+                    errorDiv.style.display = 'none';
+                    document.getElementById('changePasswordForm').reset();
+
+                    setTimeout(() => {
+                        closeModal('changePassword');
+                    }, 2000);
+                } else {
+                    errorDiv.textContent = data.error || 'Error al cambiar la contraseña';
+                    errorDiv.style.display = 'block';
+                    successDiv.style.display = 'none';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Error de conexión. Por favor intenta nuevamente.';
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save"></i> Cambiar Contraseña';
+            }
+        }
+
+
+        // Abrir modal de alertas
+        function openAlertsModal() {
+            const modal = document.getElementById('modalAlerts');
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        }
+
+        // Cerrar modal
+        function closeModal(type) {
+            if (type === 'changePassword') {
+                const modal = document.getElementById('modalChangePassword');
+                if (modal) {
+                    modal.style.display = 'none';
+                    document.getElementById('changePasswordForm').reset();
+                    document.getElementById('changePasswordError').style.display = 'none';
+                    document.getElementById('changePasswordSuccess').style.display = 'none';
+                }
+            } else if (type === 'audit') {
+                const modal = document.getElementById('modalAudit');
+                if (modal) {
+                    // Detener actualización automática si está activa
+                    if (auditInterval) {
+                        clearInterval(auditInterval);
+                        auditInterval = null;
+                        isAuditRealtime = false;
+                    }
+                    document.getElementById('auditStatus').style.display = 'none';
+                    document.getElementById('auditRefreshIndicator').style.display = 'none';
+                    modal.style.display = 'none';
+                }
+            } else if (type === 'logs') {
+                const modal = document.getElementById('modalLogs');
+                if (modal) {
+                    // Detener logs si están activos
+                    if (isLogsActive) {
+                        toggleLogs();
+                    }
+                    modal.style.display = 'none';
+                }
+            } else if (type === 'alerts') {
+                const modal = document.getElementById('modalAlerts');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            }
+        }
+
+        // Cerrar modal al hacer clic fuera
+        window.onclick = function (event) {
+            if (event.target.classList.contains('modal')) {
+                // Si es el modal de auditoría y está en tiempo real, detener actualización
+                if (event.target.id === 'modalAudit' && auditInterval) {
+                    clearInterval(auditInterval);
+                    auditInterval = null;
+                    isAuditRealtime = false;
+                }
+                // Si es el modal de logs y los logs están activos, detenerlos
+                if (event.target.id === 'modalLogs' && isLogsActive) {
+                    toggleLogs();
+                }
+                event.target.style.display = 'none';
+                if (event.target.id === 'modalChangePassword') {
+                    document.getElementById('changePasswordForm').reset();
+                    document.getElementById('changePasswordError').style.display = 'none';
+                    document.getElementById('changePasswordSuccess').style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
