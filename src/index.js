@@ -17,6 +17,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
 const WhatsAppService = require('./services/whatsappService');
+const TelegramService = require('./services/telegramService');
 const DatabaseService = require('./services/databaseService');
 const logger = require('./utils/logger');
 
@@ -25,6 +26,7 @@ class WhatsAppMessagingAPI {
         // Servicios compartidos
         this.databaseService = new DatabaseService();
         this.whatsappService = new WhatsAppService(this.databaseService);
+        this.telegramService = new TelegramService(this.databaseService);
         this.jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret_change_this';
         
         // Servidor de API (puerto 3000)
@@ -575,12 +577,15 @@ class WhatsAppMessagingAPI {
          *               phoneNumber:
          *                 type: string
          *                 example: "4121234567"
-         *                 description: Número telefónico sin código de país
+         *                 description: |
+         *                   Número telefónico sin código de país (WHATSAPP) o Chat ID de Telegram (TELEGRAM).
+         *                   Para Telegram, el usuario debe haber iniciado conversación con el bot primero.
          *               channel:
          *                 type: string
          *                 example: "WHATSAPP"
-         *                 description: Canal de envío (se ignora, siempre usa WhatsApp)
-         *                 enum: [WHATSAPP, SMS]
+         *                 description: Canal de envío (WHATSAPP o TELEGRAM)
+         *                 enum: [WHATSAPP, TELEGRAM]
+         *                 default: WHATSAPP
          *               message:
          *                 type: string
          *                 example: "Hola, este es un mensaje de prueba"
@@ -605,6 +610,10 @@ class WhatsAppMessagingAPI {
          *                 phoneNumber:
          *                   type: string
          *                   example: "584121234567"
+         *                 channel:
+         *                   type: string
+         *                   example: "WHATSAPP"
+         *                   description: Canal usado para enviar el mensaje
          *                 error:
          *                   type: string
          *                   nullable: true
@@ -613,7 +622,7 @@ class WhatsAppMessagingAPI {
          *       401:
          *         description: Clave de API inválida
          *       503:
-         *         description: WhatsApp no está conectado
+         *         description: WhatsApp o Telegram no está conectado (según el channel especificado)
          */
         this.apiApp.post('/api/send-message', async (req, res) => {
             try {
@@ -643,25 +652,60 @@ class WhatsAppMessagingAPI {
                     });
                 }
 
-                // Verificar conexión
-                const isActive = await this.whatsappService.isConnectionActive();
-                if (!isActive) {
-                    if (this.whatsappService.isConnected() && !this.whatsappService.isReconnecting) {
-                        logger.warn('Conexión inactiva detectada, iniciando reconexión...');
-                        this.whatsappService.startReconnectionProcess();
-                    }
-                    return res.status(503).json({
+                // Determinar el canal (default: WHATSAPP)
+                const messageChannel = (channel || 'WHATSAPP').toUpperCase();
+                
+                if (messageChannel !== 'WHATSAPP' && messageChannel !== 'TELEGRAM') {
+                    return res.status(400).json({
                         success: false,
-                        error: 'WhatsApp no está conectado o la conexión está inactiva. Escanea el QR o espera a la reconexión automática.',
-                        reconnecting: this.whatsappService.isReconnecting
+                        error: 'Channel inválido. Debe ser WHATSAPP o TELEGRAM'
                     });
                 }
 
-                // Formatear número completo (sin +)
-                const fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${phoneNumber.replace(/[^0-9]/g, '')}`;
+                let result;
+                let fullNumber;
+                let chatId;
 
-                // Enviar mensaje
-                const result = await this.whatsappService.sendMessage(message.trim(), fullNumber);
+                // Enviar mensaje según el canal
+                if (messageChannel === 'TELEGRAM') {
+                    // Para Telegram, el phoneNumber puede ser un chat_id o un número telefónico
+                    // Si es un número, lo formateamos igual que WhatsApp
+                    chatId = phoneNumber.replace(/[^0-9]/g, '');
+                    
+                    // Verificar conexión de Telegram
+                    const isTelegramActive = await this.telegramService.isConnectionActive();
+                    if (!isTelegramActive) {
+                        return res.status(503).json({
+                            success: false,
+                            error: 'Telegram bot no está conectado. Verifica el TELEGRAM_BOT_TOKEN en la configuración.'
+                        });
+                    }
+
+                    // Enviar mensaje por Telegram
+                    result = await this.telegramService.sendMessage(message.trim(), chatId);
+                    fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${chatId}`;
+                } else {
+                    // WhatsApp (comportamiento original)
+                    // Verificar conexión
+                    const isActive = await this.whatsappService.isConnectionActive();
+                    if (!isActive) {
+                        if (this.whatsappService.isConnected() && !this.whatsappService.isReconnecting) {
+                            logger.warn('Conexión inactiva detectada, iniciando reconexión...');
+                            this.whatsappService.startReconnectionProcess();
+                        }
+                        return res.status(503).json({
+                            success: false,
+                            error: 'WhatsApp no está conectado o la conexión está inactiva. Escanea el QR o espera a la reconexión automática.',
+                            reconnecting: this.whatsappService.isReconnecting
+                        });
+                    }
+
+                    // Formatear número completo (sin +)
+                    fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${phoneNumber.replace(/[^0-9]/g, '')}`;
+
+                    // Enviar mensaje
+                    result = await this.whatsappService.sendMessage(message.trim(), fullNumber);
+                }
                 
                 // Guardar en base de datos
                 await this.databaseService.logMessage({
@@ -669,6 +713,7 @@ class WhatsAppMessagingAPI {
                     countryCode: countryCode.replace(/[^0-9]/g, ''),
                     fullNumber: fullNumber,
                     message: message.trim(),
+                    channel: messageChannel,
                     status: result.success ? 'sent' : 'failed',
                     messageId: result.messageId || null,
                     error: result.error || null
@@ -678,6 +723,7 @@ class WhatsAppMessagingAPI {
                     success: result.success,
                     messageId: result.messageId,
                     phoneNumber: fullNumber,
+                    channel: messageChannel,
                     error: result.error
                 });
 
@@ -686,14 +732,16 @@ class WhatsAppMessagingAPI {
                 
                 // Intentar guardar error en BD
                 try {
-                    const { countryCode, phoneNumber, message } = req.body;
+                    const { countryCode, phoneNumber, message, channel } = req.body;
                     if (countryCode && phoneNumber && message) {
+                        const messageChannel = (channel || 'WHATSAPP').toUpperCase();
                         const fullNumber = `${countryCode.replace(/[^0-9]/g, '')}${phoneNumber.replace(/[^0-9]/g, '')}`;
                         await this.databaseService.logMessage({
                             phoneNumber: phoneNumber.replace(/[^0-9]/g, ''),
                             countryCode: countryCode.replace(/[^0-9]/g, ''),
                             fullNumber: fullNumber,
                             message: message.trim(),
+                            channel: messageChannel,
                             status: 'failed',
                             error: error.message
                         });
@@ -950,6 +998,14 @@ class WhatsAppMessagingAPI {
 
             // Inicializar WhatsApp
             await this.whatsappService.initialize();
+
+            // Inicializar Telegram (si está configurado)
+            if (process.env.TELEGRAM_BOT_TOKEN) {
+                this.telegramService.initialize();
+                logger.info('🤖 Servicio de Telegram inicializado');
+            } else {
+                logger.warn('⚠️ Telegram Bot Token no configurado. El servicio de Telegram no estará disponible.');
+            }
 
             // Iniciar servidor de API (puerto 3000)
             this.apiApp.listen(this.apiPort, () => {

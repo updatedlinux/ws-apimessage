@@ -1,16 +1,17 @@
 # WhatsApp Messaging API
 
-API independiente para envío de mensajes vía WhatsApp con dashboard de gestión integrado.
+API independiente para envío de mensajes vía WhatsApp y Telegram con dashboard de gestión integrado.
 
 ## 🚀 Características
 
 - ✅ **Conexión vía QR**: Escanea el código QR con WhatsApp para conectar
+- ✅ **Multi-Canal**: Soporte para WhatsApp y Telegram
 - ✅ **Envío de Mensajes**: API REST para enviar mensajes a números telefónicos individuales
 - ✅ **Persistencia de Sesión**: Mantiene la conexión activa automáticamente
 - ✅ **Dashboard Web**: Interfaz web para gestión y monitoreo
 - ✅ **Autenticación JWT**: Sistema de autenticación seguro
-- ✅ **Historial de Mensajes**: Registro completo de todos los mensajes enviados
-- ✅ **Estadísticas**: Métricas y estadísticas de mensajes
+- ✅ **Historial de Mensajes**: Registro completo de todos los mensajes enviados con canal
+- ✅ **Estadísticas**: Métricas y estadísticas de mensajes por canal
 - ✅ **Arquitectura Separada**: Frontend y Backend en dominios separados para mejor escalabilidad
 
 ## 🌐 Arquitectura de Despliegue
@@ -35,6 +36,7 @@ El frontend detecta automáticamente el entorno y hace las llamadas al backend c
 - Node.js 16+
 - MariaDB/MySQL 5.7+
 - Chromium (para whatsapp-web.js)
+- Token de Bot de Telegram (opcional, para usar Telegram)
 
 ## 🛠️ Instalación
 
@@ -148,12 +150,12 @@ curl -X POST http://localhost:3000/api/send-message \
 {
   "countryCode": "+58",
   "phoneNumber": "4121234567",
-  "channel": "WHATSAPP",
+  "channel": "WHATSAPP",  // o "TELEGRAM"
   "message": "Tu mensaje aquí"
 }
 ```
 
-**Nota:** El campo `channel` es opcional y se ignora (siempre se envía por WhatsApp).
+**Nota:** El campo `channel` es opcional y por defecto usa `WHATSAPP`. Puede ser `WHATSAPP` o `TELEGRAM`. Para usar Telegram, debes configurar `TELEGRAM_BOT_TOKEN` en el `.env` y el usuario debe haber iniciado conversación con el bot primero.
 
 **Respuesta exitosa:**
 
@@ -237,6 +239,27 @@ Authorization: Bearer <token>
   "newPassword": "nueva_password"
 }
 ```
+
+### Canales de Mensajería
+
+El API soporta dos canales de mensajería:
+- **WHATSAPP**: Requiere conexión vía QR (ver sección WhatsApp)
+- **TELEGRAM**: Requiere un bot token configurado en `.env`
+
+#### Configuración de Telegram
+
+1. Crea un bot en Telegram hablando con [@BotFather](https://t.me/botfather)
+2. Obtén el token del bot
+3. Agrega el token en tu `.env`:
+   ```env
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   ```
+4. **Importante**: Los usuarios deben iniciar conversación con tu bot primero antes de que puedas enviarles mensajes. El bot no puede iniciar conversaciones.
+
+**Nota sobre Chat IDs en Telegram:**
+- Para enviar mensajes, necesitas el `chat_id` del usuario
+- El `phoneNumber` en el endpoint puede ser un `chat_id` numérico
+- Si el usuario ya inició conversación, puedes usar su número telefónico (pero el chat_id es más confiable)
 
 ### WhatsApp
 
@@ -382,7 +405,8 @@ El script de inicialización crea las siguientes tablas:
 - **ws_messages**: Historial de mensajes enviados
 - **ws_connections**: Logs de conexión
 - **ws_users**: Usuarios del dashboard
-- **ws_sessions**: Sesiones de WhatsApp
+- **ws_sessions**: Sesiones de WhatsApp y Telegram
+- **ws_messages**: Mensajes enviados (incluye campo `channel` para identificar el canal usado)
 
 ## 🔧 Solución de Problemas
 

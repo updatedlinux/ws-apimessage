@@ -61,12 +61,14 @@ class DatabaseService {
                     country_code VARCHAR(10) NOT NULL,
                     full_number VARCHAR(30) NOT NULL,
                     message TEXT NOT NULL,
+                    channel ENUM('WHATSAPP', 'TELEGRAM', 'SMS') DEFAULT 'WHATSAPP',
                     status ENUM('sent', 'failed', 'pending') DEFAULT 'pending',
                     message_id VARCHAR(100),
                     error_message TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_phone_number (phone_number),
                     INDEX idx_full_number (full_number),
+                    INDEX idx_channel (channel),
                     INDEX idx_status (status),
                     INDEX idx_created_at (created_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -126,11 +128,37 @@ class DatabaseService {
             await this.connection.execute(usersTable);
             await this.connection.execute(sessionsTable);
             
+            // Verificar y agregar columna channel si no existe (para compatibilidad con instalaciones existentes)
+            await this.addChannelColumnIfNotExists();
+            
             logger.info('Tablas de base de datos creadas/verificadas correctamente');
 
         } catch (error) {
             logger.error('Error creando tablas:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Verifica y agrega la columna channel si no existe
+     */
+    async addChannelColumnIfNotExists() {
+        try {
+            const [columns] = await this.connection.execute(
+                "SHOW COLUMNS FROM ws_messages LIKE 'channel'"
+            );
+            
+            if (columns.length === 0) {
+                await this.connection.execute(
+                    "ALTER TABLE ws_messages ADD COLUMN channel ENUM('WHATSAPP', 'TELEGRAM', 'SMS') DEFAULT 'WHATSAPP' AFTER message"
+                );
+                await this.connection.execute(
+                    "ALTER TABLE ws_messages ADD INDEX idx_channel (channel)"
+                );
+                logger.info('Columna channel agregada a ws_messages');
+            }
+        } catch (error) {
+            logger.error('Error verificando/agregando columna channel:', error);
         }
     }
 
@@ -173,14 +201,27 @@ class DatabaseService {
      */
     async logMessage(messageData) {
         try {
-            const { phoneNumber, countryCode, fullNumber, message, status, messageId, error } = messageData;
+            const { phoneNumber, countryCode, fullNumber, message, channel, status, messageId, error } = messageData;
             
-            await this.connection.execute(
-                'INSERT INTO ws_messages (phone_number, country_code, full_number, message, status, message_id, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [phoneNumber, countryCode, fullNumber, message, status, messageId || null, error || null]
-            );
+            // Verificar si la columna channel existe, si no, agregarla
+            try {
+                await this.connection.execute(
+                    'INSERT INTO ws_messages (phone_number, country_code, full_number, message, channel, status, message_id, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [phoneNumber, countryCode, fullNumber, message, channel || 'WHATSAPP', status, messageId || null, error || null]
+                );
+            } catch (insertError) {
+                // Si falla por columna channel no existe, intentar sin channel
+                if (insertError.message.includes('channel')) {
+                    await this.connection.execute(
+                        'INSERT INTO ws_messages (phone_number, country_code, full_number, message, status, message_id, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [phoneNumber, countryCode, fullNumber, message, status, messageId || null, error || null]
+                    );
+                } else {
+                    throw insertError;
+                }
+            }
 
-            logger.info(`Mensaje registrado: ${status} - ${message.substring(0, 50)}...`);
+            logger.info(`Mensaje registrado [${channel || 'WHATSAPP'}]: ${status} - ${message.substring(0, 50)}...`);
             return true;
         } catch (error) {
             logger.error('Error registrando mensaje:', error);
