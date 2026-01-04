@@ -423,7 +423,7 @@ class WhatsAppMessagingAPI {
                 const newPasswordHash = await bcrypt.hash(newPassword, 10);
 
                 // Actualizar contraseña
-                await this.databaseService.connection.execute(
+                await this.databaseService.pool.execute(
                     'UPDATE ws_users SET password_hash = ? WHERE id = ?',
                     [newPasswordHash, userId]
                 );

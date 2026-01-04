@@ -8,7 +8,7 @@ const logger = require('../utils/logger');
 
 class DatabaseService {
     constructor() {
-        this.connection = null;
+        this.pool = null;
         this.config = {
             host: process.env.DB_HOST || 'localhost',
             user: process.env.DB_USER || 'whatsapp_user',
@@ -16,20 +16,30 @@ class DatabaseService {
             database: process.env.DB_NAME || 'whatsapp_messaging',
             port: process.env.DB_PORT || 3306,
             charset: 'utf8mb4',
-            timezone: '+00:00'
+            timezone: '+00:00',
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0,
+            enableKeepAlive: true,
+            keepAliveInitialDelay: 0
         };
     }
 
     /**
-     * Inicializa la conexión a la base de datos
+     * Inicializa el pool de conexiones a la base de datos
      */
     async initialize() {
         try {
-            this.connection = await mysql.createConnection(this.config);
-            logger.info('Conexión a base de datos establecida');
+            this.pool = mysql.createPool(this.config);
+            logger.info('Pool de conexiones a base de datos establecido');
 
-            // Crear tablas si no existen
-            await this.createTables();
+            // Verificar conexión y crear tablas si no existen
+            const connection = await this.pool.getConnection();
+            try {
+                await this.createTables(connection);
+            } finally {
+                connection.release();
+            }
             
         } catch (error) {
             logger.error('Error conectando a base de datos:', error);
@@ -38,9 +48,22 @@ class DatabaseService {
     }
 
     /**
+     * Obtiene una conexión del pool
+     */
+    async getConnection() {
+        if (!this.pool) {
+            throw new Error('Pool de conexiones no inicializado');
+        }
+        return await this.pool.getConnection();
+    }
+
+    /**
      * Crea las tablas necesarias en la base de datos
      */
-    async createTables() {
+    async createTables(connection = null) {
+        const conn = connection || await this.getConnection();
+        const shouldRelease = !connection;
+        
         try {
             // Tabla para configuración del servicio
             const configTable = `
@@ -144,44 +167,55 @@ class DatabaseService {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             `;
 
-            await this.connection.execute(configTable);
-            await this.connection.execute(messagesTable);
-            await this.connection.execute(connectionTable);
-            await this.connection.execute(usersTable);
-            await this.connection.execute(sessionsTable);
-            await this.connection.execute(telegramUsersTable);
+            await conn.execute(configTable);
+            await conn.execute(messagesTable);
+            await conn.execute(connectionTable);
+            await conn.execute(usersTable);
+            await conn.execute(sessionsTable);
+            await conn.execute(telegramUsersTable);
             
             // Verificar y agregar columna channel si no existe (para compatibilidad con instalaciones existentes)
-            await this.addChannelColumnIfNotExists();
+            await this.addChannelColumnIfNotExists(conn);
             
             logger.info('Tablas de base de datos creadas/verificadas correctamente');
 
         } catch (error) {
             logger.error('Error creando tablas:', error);
             throw error;
+        } finally {
+            if (shouldRelease && conn) {
+                conn.release();
+            }
         }
     }
 
     /**
      * Verifica y agrega la columna channel si no existe
      */
-    async addChannelColumnIfNotExists() {
+    async addChannelColumnIfNotExists(connection = null) {
+        const conn = connection || await this.getConnection();
+        const shouldRelease = !connection;
+        
         try {
-            const [columns] = await this.connection.execute(
+            const [columns] = await conn.execute(
                 "SHOW COLUMNS FROM ws_messages LIKE 'channel'"
             );
             
             if (columns.length === 0) {
-                await this.connection.execute(
+                await conn.execute(
                     "ALTER TABLE ws_messages ADD COLUMN channel ENUM('WHATSAPP', 'TELEGRAM', 'SMS') DEFAULT 'WHATSAPP' AFTER message"
                 );
-                await this.connection.execute(
+                await conn.execute(
                     "ALTER TABLE ws_messages ADD INDEX idx_channel (channel)"
                 );
                 logger.info('Columna channel agregada a ws_messages');
             }
         } catch (error) {
             logger.error('Error verificando/agregando columna channel:', error);
+        } finally {
+            if (shouldRelease && conn) {
+                conn.release();
+            }
         }
     }
 
@@ -190,7 +224,7 @@ class DatabaseService {
      */
     async getConfig(key) {
         try {
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 'SELECT config_value FROM ws_config WHERE config_key = ?',
                 [key]
             );
@@ -207,7 +241,7 @@ class DatabaseService {
      */
     async setConfig(key, value) {
         try {
-            await this.connection.execute(
+            await this.pool.execute(
                 'INSERT INTO ws_config (config_key, config_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE config_value = ?, updated_at = CURRENT_TIMESTAMP',
                 [key, value, value]
             );
@@ -228,14 +262,14 @@ class DatabaseService {
             
             // Verificar si la columna channel existe, si no, agregarla
             try {
-                await this.connection.execute(
+                await this.pool.execute(
                     'INSERT INTO ws_messages (phone_number, country_code, full_number, message, channel, status, message_id, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [phoneNumber, countryCode, fullNumber, message, channel || 'WHATSAPP', status, messageId || null, error || null]
                 );
             } catch (insertError) {
                 // Si falla por columna channel no existe, intentar sin channel
                 if (insertError.message.includes('channel')) {
-                    await this.connection.execute(
+                    await this.pool.execute(
                         'INSERT INTO ws_messages (phone_number, country_code, full_number, message, status, message_id, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)',
                         [phoneNumber, countryCode, fullNumber, message, status, messageId || null, error || null]
                     );
@@ -259,7 +293,7 @@ class DatabaseService {
         try {
             const { qrCode, errorMessage, userInfo } = data;
             
-            await this.connection.execute(
+            await this.pool.execute(
                 'INSERT INTO ws_connections (status, qr_code, error_message, user_info) VALUES (?, ?, ?, ?)',
                 [status, qrCode || null, errorMessage || null, userInfo ? JSON.stringify(userInfo) : null]
             );
@@ -288,7 +322,7 @@ class DatabaseService {
             query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
             params.push(limit, offset);
             
-            const [rows] = await this.connection.execute(query, params);
+            const [rows] = await this.pool.execute(query, params);
             return rows;
         } catch (error) {
             logger.error('Error obteniendo historial de mensajes:', error);
@@ -318,7 +352,7 @@ class DatabaseService {
             
             query += ' GROUP BY COALESCE(channel, \'WHATSAPP\'), status';
             
-            const [rows] = await this.connection.execute(query, params);
+            const [rows] = await this.pool.execute(query, params);
             return rows;
         } catch (error) {
             logger.error('Error obteniendo estadísticas:', error);
@@ -331,7 +365,7 @@ class DatabaseService {
      */
     async getLastConnectionStatus() {
         try {
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 'SELECT * FROM ws_connections ORDER BY created_at DESC LIMIT 1'
             );
 
@@ -347,7 +381,7 @@ class DatabaseService {
      */
     async getUserByUsername(username) {
         try {
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 'SELECT * FROM ws_users WHERE username = ? AND is_active = TRUE',
                 [username]
             );
@@ -366,7 +400,7 @@ class DatabaseService {
         try {
             const { username, passwordHash, email, fullName } = userData;
             
-            await this.connection.execute(
+            await this.pool.execute(
                 'INSERT INTO ws_users (username, password_hash, email, full_name) VALUES (?, ?, ?, ?)',
                 [username, passwordHash, email || null, fullName || null]
             );
@@ -384,7 +418,7 @@ class DatabaseService {
      */
     async updateUserLastLogin(username) {
         try {
-            await this.connection.execute(
+            await this.pool.execute(
                 'UPDATE ws_users SET last_login = CURRENT_TIMESTAMP WHERE username = ?',
                 [username]
             );
@@ -402,7 +436,7 @@ class DatabaseService {
         try {
             const { sessionId, phoneNumber, phoneName, status } = sessionData;
             
-            await this.connection.execute(
+            await this.pool.execute(
                 `INSERT INTO ws_sessions (session_id, phone_number, phone_name, status, connected_at, last_activity) 
                  VALUES (?, ?, ?, ?, NOW(), NOW())
                  ON DUPLICATE KEY UPDATE 
@@ -426,7 +460,7 @@ class DatabaseService {
      */
     async getActiveSession() {
         try {
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 'SELECT * FROM ws_sessions WHERE status = "active" ORDER BY last_activity DESC LIMIT 1'
             );
 
@@ -442,11 +476,11 @@ class DatabaseService {
      */
     async cleanOldLogs() {
         try {
-            const [result] = await this.connection.execute(
+            const [result] = await this.pool.execute(
                 'DELETE FROM ws_messages WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)'
             );
 
-            const [result2] = await this.connection.execute(
+            const [result2] = await this.pool.execute(
                 'DELETE FROM ws_connections WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)'
             );
 
@@ -459,17 +493,17 @@ class DatabaseService {
     }
 
     /**
-     * Cierra la conexión a la base de datos
+     * Cierra el pool de conexiones a la base de datos
      */
     async close() {
         try {
-            if (this.connection) {
-                await this.connection.end();
-                this.connection = null;
-                logger.info('Conexión a base de datos cerrada');
+            if (this.pool) {
+                await this.pool.end();
+                this.pool = null;
+                logger.info('Pool de conexiones a base de datos cerrado');
             }
         } catch (error) {
-            logger.error('Error cerrando conexión a base de datos:', error);
+            logger.error('Error cerrando pool de conexiones a base de datos:', error);
         }
     }
 
@@ -478,11 +512,11 @@ class DatabaseService {
      */
     async healthCheck() {
         try {
-            if (!this.connection) {
-                return { healthy: false, error: 'No hay conexión activa' };
+            if (!this.pool) {
+                return { healthy: false, error: 'No hay pool de conexiones activo' };
             }
 
-            await this.connection.execute('SELECT 1');
+            await this.pool.execute('SELECT 1');
             return { healthy: true };
         } catch (error) {
             return { healthy: false, error: error.message };
@@ -496,7 +530,7 @@ class DatabaseService {
         try {
             const { chatId, username, phoneNumber, email, customIdentifier, firstName, lastName } = userData;
             
-            await this.connection.execute(
+            await this.pool.execute(
                 `INSERT INTO ws_telegram_users 
                  (chat_id, username, phone_number, email, custom_identifier, first_name, last_name, last_message_at) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
@@ -532,7 +566,7 @@ class DatabaseService {
         try {
             // Si empieza con @, es un username
             if (identifier.startsWith('@')) {
-                const [rows] = await this.connection.execute(
+                const [rows] = await this.pool.execute(
                     'SELECT chat_id FROM ws_telegram_users WHERE username = ? LIMIT 1',
                     [identifier]
                 );
@@ -540,7 +574,7 @@ class DatabaseService {
             }
             
             // Buscar por phone_number, email o custom_identifier
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 `SELECT chat_id FROM ws_telegram_users 
                  WHERE phone_number = ? OR email = ? OR custom_identifier = ? 
                  LIMIT 1`,
@@ -559,7 +593,7 @@ class DatabaseService {
      */
     async getTelegramUsers(limit = 50, offset = 0) {
         try {
-            const [rows] = await this.connection.execute(
+            const [rows] = await this.pool.execute(
                 'SELECT * FROM ws_telegram_users ORDER BY last_message_at DESC LIMIT ? OFFSET ?',
                 [limit, offset]
             );
