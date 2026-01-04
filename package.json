@@ -7,6 +7,7 @@
       "start": "node src/index.js",
       "dev": "nodemon src/index.js",
       "init-db": "node scripts/init-db.js",
+      "reset-admin-password": "node scripts/reset-admin-password.js",
       "generate-secrets": "node scripts/generate-secrets.js",
       "migrate-channel": "node scripts/migrate-channel.js",
       "migrate-telegram-users": "node scripts/migrate-telegram-users.js",

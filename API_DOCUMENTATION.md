@@ -568,3 +568,4 @@ Para soporte técnico o consultas sobre la API, contacta al administrador del si
 
 **Última actualización**: Enero 2026
 
+
