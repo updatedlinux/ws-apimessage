@@ -23,7 +23,7 @@ class WhatsAppService {
         this.isReconnecting = false;
         this.healthCheckInterval = 60000; // 1 minuto
         this.healthCheckTimer = null;
-        
+
         // Configurar cliente con autenticación local
         this.setupClient();
     }
@@ -34,16 +34,16 @@ class WhatsAppService {
     setupClient() {
         try {
             logger.info('Configurando cliente de WhatsApp...');
-            
+
             // Generar directorio de sesión único con timestamp
             const timestamp = Date.now();
             const uniqueSessionPath = path.join(__dirname, '../../sessions', `session-${timestamp}`);
-            
+
             // Crear directorio único si no existe
             if (!fs.existsSync(uniqueSessionPath)) {
                 fs.mkdirSync(uniqueSessionPath, { recursive: true });
             }
-            
+
             logger.info(`Directorio de sesiones: ${uniqueSessionPath}`);
 
             // Limpiar sesiones antiguas
@@ -75,10 +75,10 @@ class WhatsAppService {
                     ],
                     timeout: 60000
                 },
-                webVersionCache: {
-                    type: 'remote',
-                    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
-                }
+                // webVersionCache: {
+                //     type: 'remote',
+                //     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+                // }
             });
 
             this.setupEventHandlers();
@@ -128,7 +128,7 @@ class WhatsAppService {
             this._isQRGenerated = false;
             this.qrCode = null;
             this.reconnectAttempts = 0; // Resetear contador de reconexiones
-            
+
             // Guardar información de sesión en base de datos
             if (this.databaseService && this.client.info) {
                 try {
@@ -145,7 +145,7 @@ class WhatsAppService {
                     logger.error('Error guardando sesión:', error);
                 }
             }
-            
+
             // Iniciar health check periódico
             this.startPeriodicHealthCheck();
         });
@@ -160,7 +160,7 @@ class WhatsAppService {
             logger.warn(`❌ WhatsApp desconectado: ${reason}`);
             this._isConnected = false;
             this.qrCode = null;
-            
+
             // Actualizar estado de sesión en base de datos
             if (this.databaseService) {
                 try {
@@ -173,7 +173,7 @@ class WhatsAppService {
                     logger.error('Error actualizando estado de sesión:', error);
                 }
             }
-            
+
             // Iniciar proceso de reconexión automática
             this.startReconnectionProcess();
         });
@@ -183,7 +183,7 @@ class WhatsAppService {
             logger.error('❌ Error de autenticación:', msg);
             this._isConnected = false;
             this.qrCode = null;
-            
+
             // Actualizar estado de sesión en base de datos
             if (this.databaseService) {
                 try {
@@ -226,7 +226,7 @@ class WhatsAppService {
 
             this.qrCode = qrImageBuffer.toString('base64');
             this._isQRGenerated = true;
-            
+
             logger.info('✅ QR generado exitosamente');
         } catch (error) {
             logger.error('Error generando QR:', error);
@@ -240,12 +240,12 @@ class WhatsAppService {
     async initialize() {
         try {
             logger.info('Inicializando servicio de WhatsApp con whatsapp-web.js...');
-            
+
             // Si no hay cliente o fue destruido, crear uno nuevo
             if (!this.client) {
                 this.setupClient();
             }
-            
+
             // Inicializar el cliente
             await this.client.initialize();
             logger.info('Cliente de WhatsApp inicializado correctamente');
@@ -269,22 +269,22 @@ class WhatsAppService {
             if (!this.client) {
                 return false;
             }
-            
+
             // Verificar que el estado interno indica conexión
             if (!this._isConnected) {
                 return false;
             }
-            
+
             // Verificar que el cliente tiene información válida
             if (!this.client.info || !this.client.info.wid) {
                 return false;
             }
-            
+
             // Verificar que el cliente no está en proceso de reconexión
             if (this.isReconnecting) {
                 return false;
             }
-            
+
             return true;
         } catch (error) {
             logger.warn('Error verificando estado de conexión:', error.message);
@@ -362,15 +362,15 @@ class WhatsAppService {
             // Formatear número para WhatsApp (debe incluir código de país sin +)
             // El formato debe ser: código_país + número (ej: 584121234567)
             let formattedNumber = phoneNumber.replace(/[^0-9]/g, ''); // Remover caracteres no numéricos
-            
+
             // Asegurar que el número tenga el formato correcto para WhatsApp
             // WhatsApp requiere el formato: código_país + número@c.us
             const chatId = `${formattedNumber}@c.us`;
 
             logger.info(`Enviando mensaje a número: ${formattedNumber}`);
-            
+
             const result = await this.client.sendMessage(chatId, message);
-            
+
             logger.info('✅ Mensaje enviado correctamente');
             return {
                 success: true,
@@ -430,19 +430,19 @@ class WhatsAppService {
     cleanupOldSessions() {
         try {
             const sessionsBasePath = path.join(__dirname, '../../sessions');
-            
+
             if (!fs.existsSync(sessionsBasePath)) {
                 return;
             }
-            
+
             const dirs = fs.readdirSync(sessionsBasePath);
             const oneHourAgo = Date.now() - (60 * 60 * 1000);
-            
+
             for (const dir of dirs) {
                 if (dir.startsWith('session-')) {
                     const dirPath = path.join(sessionsBasePath, dir);
                     const stats = fs.statSync(dirPath);
-                    
+
                     if (stats.isDirectory() && stats.mtime.getTime() < oneHourAgo) {
                         try {
                             fs.rmSync(dirPath, { recursive: true, force: true });
@@ -457,7 +457,7 @@ class WhatsAppService {
             logger.error('Error limpiando sesiones antiguas:', error);
         }
     }
-    
+
     /**
      * Inicia el proceso de reconexión automática
      */
@@ -468,16 +468,16 @@ class WhatsAppService {
 
         this.isReconnecting = true;
         this.reconnectAttempts++;
-        
+
         logger.info(`🔄 Iniciando reconexión automática (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        
+
         this.reconnectTimer = setTimeout(async () => {
             try {
                 await this.reconnect();
             } catch (error) {
                 logger.error('Error en reconexión automática:', error);
                 this.isReconnecting = false;
-                
+
                 // Si no hemos alcanzado el máximo de intentos, programar otro
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.startReconnectionProcess();
@@ -494,10 +494,10 @@ class WhatsAppService {
     async reconnect() {
         try {
             logger.info('🔄 Intentando reconectar WhatsApp...');
-            
+
             // Detener health check mientras se reconecta
             this.stopPeriodicHealthCheck();
-            
+
             // Limpiar cliente anterior si existe
             if (this.client) {
                 try {
@@ -506,21 +506,21 @@ class WhatsAppService {
                     logger.warn('Error cerrando cliente anterior:', error.message);
                 }
             }
-            
+
             // Resetear estado
             this._isConnected = false;
             this._isQRGenerated = false;
             this.qrCode = null;
             this.client = null;
-            
+
             // Crear nuevo cliente
             this.setupClient();
             await this.initialize();
-            
+
             logger.info('✅ Reconexión exitosa');
             this.isReconnecting = false;
             this.reconnectAttempts = 0; // Resetear contador en caso de éxito
-            
+
             // Guardar información de sesión después de reconectar
             if (this.databaseService && this.client.info) {
                 try {
@@ -537,7 +537,7 @@ class WhatsAppService {
                     logger.error('Error guardando sesión después de reconexión:', error);
                 }
             }
-            
+
         } catch (error) {
             logger.error('❌ Error en reconexión:', error);
             this.isReconnecting = false;
@@ -551,7 +551,7 @@ class WhatsAppService {
     startPeriodicHealthCheck() {
         // Detener cualquier health check anterior
         this.stopPeriodicHealthCheck();
-        
+
         this.healthCheckTimer = setInterval(async () => {
             try {
                 const isActive = await this.isConnectionActive();
@@ -563,7 +563,7 @@ class WhatsAppService {
                 logger.error('Error en health check periódico:', error);
             }
         }, this.healthCheckInterval);
-        
+
         logger.info(`🔍 Health check periódico iniciado (cada ${this.healthCheckInterval / 1000} segundos)`);
     }
 
@@ -599,20 +599,20 @@ class WhatsAppService {
             // Detener reconexión automática y health check
             this.stopReconnectionProcess();
             this.stopPeriodicHealthCheck();
-            
+
             if (this.client) {
                 await this.client.destroy();
                 logger.info('Cliente de WhatsApp cerrado');
             }
-            
+
             // Limpiar estado
             this._isConnected = false;
             this._isQRGenerated = false;
             this.qrCode = null;
             this.client = null;
-            
+
             logger.info('Estado de WhatsApp limpiado');
-            
+
         } catch (error) {
             logger.error('Error cerrando cliente:', error);
         }
