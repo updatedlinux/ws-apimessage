@@ -111,6 +111,11 @@ class WhatsAppService {
      * Configura los event handlers del cliente
      */
     setupEventHandlers() {
+        // Loading Screen (Nuevo para debug)
+        this.client.on('loading_screen', (percent, message) => {
+            logger.info(`⏳ WhatsApp cargando: ${percent}% - ${message}`);
+        });
+
         // QR Code generado
         this.client.on('qr', async (qr) => {
             try {
@@ -123,36 +128,31 @@ class WhatsAppService {
 
         // Cliente listo
         this.client.on('ready', async () => {
-            logger.info('✅ WhatsApp conectado y listo!');
-            this._isConnected = true;
-            this._isQRGenerated = false;
-            this.qrCode = null;
-            this.reconnectAttempts = 0; // Resetear contador de reconexiones
-
-            // Guardar información de sesión en base de datos
-            if (this.databaseService && this.client.info) {
-                try {
-                    const phoneNumber = this.client.info.wid?.user || null;
-                    const phoneName = this.client.info.pushname || null;
-                    await this.databaseService.saveSession({
-                        sessionId: 'default',
-                        phoneNumber: phoneNumber,
-                        phoneName: phoneName,
-                        status: 'active'
-                    });
-                    logger.info(`📱 Sesión guardada: ${phoneName || phoneNumber}`);
-                } catch (error) {
-                    logger.error('Error guardando sesión:', error);
-                }
-            }
-
-            // Iniciar health check periódico
-            this.startPeriodicHealthCheck();
+            logger.info('✅ Evento READY recibido');
+            await this._handleReady();
         });
 
         // Cliente autenticado
         this.client.on('authenticated', () => {
-            logger.info('🔐 WhatsApp autenticado correctamente');
+            logger.info('🔐 WhatsApp autenticado correctamente - Esperando evento ready...');
+
+            // Watchdog: Si no recibimos 'ready' en 15 segundos, verificar manualmente
+            setTimeout(async () => {
+                if (!this._isConnected) {
+                    logger.warn('⚠️ Watchdog: Autenticado pero no READY. Verificando estado...');
+                    try {
+                        const state = await this.client.getState();
+                        logger.info(`ℹ️ Estado actual del cliente: ${state}`);
+
+                        if (state === 'CONNECTED') {
+                            logger.warn('⚠️ Watchdog: Forzando estado READY ya que está conectado');
+                            await this._handleReady();
+                        }
+                    } catch (error) {
+                        logger.error('❌ Watchdog error:', error);
+                    }
+                }
+            }, 10000); // 10 segundos espera
         });
 
         // Cliente desconectado
@@ -616,6 +616,38 @@ class WhatsAppService {
         } catch (error) {
             logger.error('Error cerrando cliente:', error);
         }
+    }
+    /**
+     * Maneja la lógica cuando el cliente está listo
+     */
+    async _handleReady() {
+        if (this._isConnected) return; // Evitar doble ejecución
+
+        logger.info('✅ WhatsApp conectado y listo! (Handler)');
+        this._isConnected = true;
+        this._isQRGenerated = false;
+        this.qrCode = null;
+        this.reconnectAttempts = 0;
+
+        // Guardar información de sesión en base de datos
+        if (this.databaseService && this.client && this.client.info) {
+            try {
+                const phoneNumber = this.client.info.wid?.user || null;
+                const phoneName = this.client.info.pushname || null;
+                await this.databaseService.saveSession({
+                    sessionId: 'default',
+                    phoneNumber: phoneNumber,
+                    phoneName: phoneName,
+                    status: 'active'
+                });
+                logger.info(`📱 Sesión guardada: ${phoneName || phoneNumber}`);
+            } catch (error) {
+                logger.error('Error guardando sesión:', error);
+            }
+        }
+
+        // Iniciar health check periódico
+        this.startPeriodicHealthCheck();
     }
 }
 
